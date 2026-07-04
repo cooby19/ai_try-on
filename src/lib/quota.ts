@@ -12,8 +12,9 @@ import type { JobStatus, TryOnJob } from "./types";
 export const DAILY_GENERATION_LIMIT = 3;
 export const PER_PRODUCT_RETRY_LIMIT = 2;
 
-// 「每日」以台北時區（UTC+8）為界
-function todayStartUtcIso(): string {
+// 「每日」以台北時區（UTC+8）為界。
+// export 是為了讓單元測試能直接驗證時區邊界（行為不變，仍僅供本模組與測試使用）。
+export function todayStartUtcIso(): string {
   const now = new Date();
   const taipeiNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
   taipeiNow.setUTCHours(0, 0, 0, 0);

@@ -38,6 +38,9 @@ export default function TryOnLauncher({ product }: { product: Product }) {
   }, [product.id]);
 
   useEffect(() => {
+    // refreshQuota 是 async：setQuota 發生在 await fetch 之後，並非同步 setState，
+    // 不會造成串聯渲染；「開啟 modal 時向後端同步額度」正是 effect 的正當用途。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (open) refreshQuota();
   }, [open, refreshQuota]);
 

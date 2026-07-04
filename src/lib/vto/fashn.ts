@@ -77,8 +77,9 @@ export class FashnVTOProvider implements VTOProvider {
   }
 }
 
-// 把 FASHN 的技術性錯誤轉成使用者「可操作」的訊息（規格書第八、九節）
-function mapFashnError(raw: string): string {
+// 把 FASHN 的技術性錯誤轉成使用者「可操作」的訊息（規格書第八、九節）。
+// export 是為了讓單元測試能直接驗證錯誤轉譯（行為不變，仍僅供本模組與測試使用）。
+export function mapFashnError(raw: string): string {
   const lower = raw.toLowerCase();
   if (lower.includes("pose") || lower.includes("person") || lower.includes("detect")) {
     return "這張照片可能不適合 AI 試穿：偵測不到清楚的上半身。建議改用正面、手自然放下、上衣清楚的半身照再試一次。";

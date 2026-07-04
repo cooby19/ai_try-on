@@ -2,6 +2,9 @@
 // 加入購物車：MVP 只是示範用的假動作
 import { useState } from "react";
 
+// productName 目前未使用：假按鈕不顯示品名，但保留此 prop 供未來真實購物車
+// （加入成功提示、後端 API）使用，呼叫端已依此介面傳入，不宜移除。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function AddToCartButton({ productName }: { productName: string }) {
   const [added, setAdded] = useState(false);
   return (
