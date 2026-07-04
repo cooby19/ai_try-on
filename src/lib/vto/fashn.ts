@@ -81,11 +81,13 @@ export class FashnVTOProvider implements VTOProvider {
 // export 是為了讓單元測試能直接驗證錯誤轉譯（行為不變，仍僅供本模組與測試使用）。
 export function mapFashnError(raw: string): string {
   const lower = raw.toLowerCase();
-  if (lower.includes("pose") || lower.includes("person") || lower.includes("detect")) {
-    return "這張照片可能不適合 AI 試穿：偵測不到清楚的上半身。建議改用正面、手自然放下、上衣清楚的半身照再試一次。";
-  }
+  // 內容審查需先於偵測分支比對：這類錯誤（如 "NSFW detected"）常同時含 "detect"，
+  // 先比對 nsfw/content 才不會被偵測分支攔截、回傳誤導的「偵測不到上半身」訊息。
   if (lower.includes("nsfw") || lower.includes("content")) {
     return "這張照片未通過內容檢查，請改用一般的日常穿著照片。";
+  }
+  if (lower.includes("pose") || lower.includes("person") || lower.includes("detect")) {
+    return "這張照片可能不適合 AI 試穿：偵測不到清楚的上半身。建議改用正面、手自然放下、上衣清楚的半身照再試一次。";
   }
   return `AI 生成暫時失敗，請稍後再試一次。若持續失敗，建議換一張光線較亮、上衣清楚的正面半身照。（${raw.slice(0, 120) || "provider error"}）`;
 }

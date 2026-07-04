@@ -23,11 +23,11 @@ describe("mapFashnError：錯誤轉譯", () => {
     }
   );
 
-  it("同時命中多組關鍵字時，偵測分支優先（記錄現行的關鍵字順序）", () => {
-    // "NSFW detected" 含 "detect"，會先被姿勢／人物偵測分支攔截，
-    // 拿到的不是內容檢查訊息。這是 mapFashnError 依序比對的既有行為，
-    // 這裡如實釘住；若未來調整關鍵字優先序，此測試會提醒重新確認文案。
-    expect(mapFashnError("NSFW detected")).toContain("上半身");
+  it("同時命中多組關鍵字時，內容檢查分支優先", () => {
+    // "NSFW detected" 同時含 "nsfw" 與 "detect"：內容審查的訊息更具體，
+    // mapFashnError 因此先比對 nsfw/content、再比對 pose/person/detect，
+    // 避免使用者在被內容審查擋下時，誤收到「偵測不到上半身」的引導。
+    expect(mapFashnError("NSFW detected")).toContain("內容檢查");
   });
 
   it("未知錯誤 → 通用重試訊息，並附上截斷後的原始錯誤供除錯", () => {
