@@ -1,65 +1,80 @@
-import Image from "next/image";
+// 首頁：商品列表（Server Component，直接從資料庫讀商品）
+import Link from "next/link";
+import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import type { Product } from "@/lib/types";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  if (!isSupabaseConfigured()) {
+    return <SetupGuide reason="尚未設定 Supabase 環境變數" />;
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: products, error } = await supabase
+    .from("products")
+    .select("*")
+    .order("created_at")
+    .returns<Product[]>();
+
+  if (error) {
+    return <SetupGuide reason={`資料庫查詢失敗：${error.message}（可能還沒執行 migration）`} />;
+  }
+  if (!products?.length) {
+    return <SetupGuide reason="products 資料表是空的（種子資料尚未匯入）" />;
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div>
+      <h1 className="text-2xl font-semibold mb-1">上衣</h1>
+      <p className="text-sm text-stone-500 mb-6">選一件商品，上傳照片體驗 AI 試穿。</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {products.map((p) => (
+          <Link
+            key={p.id}
+            href={`/products/${p.id}`}
+            className="group rounded-xl border border-stone-200 bg-white overflow-hidden hover:shadow-md transition-shadow"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.image_url}
+              alt={p.name}
+              className="w-full aspect-square object-cover bg-stone-100"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+            <div className="p-4">
+              <h2 className="font-medium group-hover:underline">{p.name}</h2>
+              <p className="text-sm text-stone-500 mt-0.5">
+                {p.color} · {p.fit}
+              </p>
+              <p className="mt-2 font-semibold">NT$ {Math.round(p.price)}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SetupGuide({ reason }: { reason: string }) {
+  return (
+    <div className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-sm leading-6">
+      <h1 className="text-lg font-semibold mb-2">還差一步就能開始 Demo</h1>
+      <p className="text-amber-800 mb-4">{reason}</p>
+      <ol className="list-decimal pl-5 space-y-1 text-stone-700">
+        <li>
+          到 <span className="font-mono">supabase.com</span> 建立免費專案
+        </li>
+        <li>
+          複製 <span className="font-mono">.env.local.example</span> 為{" "}
+          <span className="font-mono">.env.local</span>，填入專案的 URL 與 service role key
+        </li>
+        <li>
+          在 Supabase Dashboard 的 SQL Editor 執行{" "}
+          <span className="font-mono">supabase/migrations/001_init.sql</span>
+        </li>
+        <li>重新啟動 dev server</li>
+      </ol>
+      <p className="mt-4 text-stone-500">詳細步驟請見專案 README.md。</p>
     </div>
   );
 }

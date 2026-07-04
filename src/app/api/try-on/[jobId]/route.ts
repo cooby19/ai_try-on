@@ -1,0 +1,134 @@
+// GET    /api/try-on/[jobId] — 輪詢任務狀態；processing 時順便向 provider 查進度
+// DELETE /api/try-on/[jobId] — 刪除試穿紀錄與相關照片（隱私需求：使用者可刪除自己的紀錄）
+import { NextResponse } from "next/server";
+import { getUserId } from "@/lib/user";
+import { getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET, createSignedUrl } from "@/lib/supabase";
+import { updateJobStatus } from "@/lib/quota";
+import { getVTOProvider } from "@/lib/vto";
+import type { VTOSubmitInput } from "@/lib/vto/provider";
+import { loadImageAsPngBuffer } from "@/lib/images";
+import { jsonError, errorMessage } from "@/lib/http";
+import type { TryOnJob, TryOnJobView } from "@/lib/types";
+
+type RouteParams = { params: Promise<{ jobId: string }> };
+
+async function loadOwnedJob(jobId: string): Promise<TryOnJob | null> {
+  const userId = await getUserId();
+  if (!userId) return null;
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from("try_on_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .eq("user_id", userId) // 只能查 / 刪自己的任務
+    .single<TryOnJob>();
+  return data ?? null;
+}
+
+export async function GET(_req: Request, { params }: RouteParams) {
+  try {
+    const { jobId } = await params;
+    let job = await loadOwnedJob(jobId);
+    if (!job) return jsonError(404, "找不到這筆試穿紀錄。");
+
+    // 任務還在進行中 → 向 provider 查一次進度
+    if ((job.status === "pending" || job.status === "processing") && job.provider_job_id) {
+      const provider = getVTOProvider(job.provider);
+
+      let ctx: VTOSubmitInput | undefined;
+      if (provider.requiresImagesOnPoll) {
+        const supabase = getSupabaseAdmin();
+        const { data: personFile } = await supabase.storage
+          .from(PERSON_BUCKET)
+          .download(job.person_image_url);
+        if (personFile) {
+          ctx = {
+            personImage: Buffer.from(await personFile.arrayBuffer()),
+            garmentImage: await loadImageAsPngBuffer(job.garment_image_url),
+            garmentType: "tops",
+          };
+        }
+      }
+
+      const result = await provider.checkStatus(job.provider_job_id, ctx);
+      if (result.status === "success") {
+        // 結果圖存進私有 bucket，前端只拿短期 signed URL
+        const resultPath = `${job.user_id}/${job.id}.jpg`;
+        const supabase = getSupabaseAdmin();
+        const { error: uploadError } = await supabase.storage
+          .from(RESULT_BUCKET)
+          .upload(resultPath, result.resultImage, { contentType: "image/jpeg", upsert: true });
+        if (uploadError) {
+          await updateJobStatus(job.id, {
+            status: "failed",
+            error_message: `結果圖儲存失敗：${uploadError.message}`,
+          });
+          job = { ...job, status: "failed", error_message: "結果圖儲存失敗，請重新生成一次。" };
+        } else {
+          await updateJobStatus(job.id, { status: "success", result_image_url: resultPath });
+          job = { ...job, status: "success", result_image_url: resultPath };
+        }
+      } else if (result.status === "failed") {
+        await updateJobStatus(job.id, { status: "failed", error_message: result.errorMessage });
+        job = { ...job, status: "failed", error_message: result.errorMessage };
+      }
+      // processing → 維持原狀，前端稍後再輪詢
+    }
+
+    const view: TryOnJobView = {
+      jobId: job.id,
+      status: job.status,
+      personImageUrl: await createSignedUrl(PERSON_BUCKET, job.person_image_url),
+      resultImageUrl: job.result_image_url
+        ? await createSignedUrl(RESULT_BUCKET, job.result_image_url)
+        : null,
+      costEstimate: Number(job.cost_estimate),
+      retryCount: job.retry_count,
+      ...(job.error_message ? { message: job.error_message } : {}),
+    };
+    return NextResponse.json(view);
+  } catch (e) {
+    return jsonError(500, errorMessage(e));
+  }
+}
+
+export async function DELETE(_req: Request, { params }: RouteParams) {
+  try {
+    const { jobId } = await params;
+    const job = await loadOwnedJob(jobId);
+    if (!job) return jsonError(404, "找不到這筆試穿紀錄。");
+
+    const supabase = getSupabaseAdmin();
+
+    // 刪結果圖
+    if (job.result_image_url) {
+      await supabase.storage.from(RESULT_BUCKET).remove([job.result_image_url]);
+    }
+    // 人物照可能被「重新生成」的其他任務共用，確認沒有其他任務引用才刪檔案
+    if (job.person_image_url) {
+      const { count } = await supabase
+        .from("try_on_jobs")
+        .select("id", { count: "exact", head: true })
+        .eq("person_image_url", job.person_image_url)
+        .neq("id", job.id);
+      if (!count) {
+        await supabase.storage.from(PERSON_BUCKET).remove([job.person_image_url]);
+      }
+    }
+    // 隱私 vs 成本控管的取捨：照片實體檔案全部刪除、圖片欄位清空（隱私），
+    // 但 job 列保留——額度是統計當日筆數，若整列刪除，使用者就能靠
+    // 「生成 → 刪除」重複刷額度，成本指標也會失真。
+    await supabase
+      .from("try_on_jobs")
+      .update({
+        person_image_url: "",
+        result_image_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", job.id);
+
+    return NextResponse.json({ status: "success", message: "照片已刪除，生成次數紀錄保留。" });
+  } catch (e) {
+    return jsonError(500, errorMessage(e));
+  }
+}
