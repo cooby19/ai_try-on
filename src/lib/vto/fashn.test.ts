@@ -50,6 +50,78 @@ describe("mapFashnError：錯誤轉譯", () => {
   });
 });
 
+describe("FashnVTOProvider.submit：請求格式", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.stubEnv("FASHN_API_KEY", "test-key");
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    fetchMock.mockReset();
+  });
+
+  // 從最近一次 fetch 呼叫解出送給 FASHN 的 inputs，方便逐欄驗證
+  function lastSubmitInputs(): Record<string, unknown> {
+    const [, init] = fetchMock.mock.calls.at(-1)!;
+    return JSON.parse((init as RequestInit).body as string).inputs;
+  }
+
+  it("以 quality 模式、flat-lay、jpeg 送出正確端點", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "job-xyz" }),
+    } as unknown as Response);
+
+    const result = await new FashnVTOProvider().submit({
+      personImage: Buffer.from([1]),
+      garmentImage: Buffer.from([2]),
+      garmentType: "tops",
+    });
+    expect(result).toEqual({ providerJobId: "job-xyz" });
+
+    const [url] = fetchMock.mock.calls.at(-1)!;
+    expect(url).toBe("https://api.fashn.ai/v1/run");
+    const inputs = lastSubmitInputs();
+    // quality 與 balanced 同價，是零成本品質升級（見 fashn.ts 註解）
+    expect(inputs.mode).toBe("quality");
+    // 商品圖為平拍去背圖，明示 flat-lay 比 auto 猜測更穩定
+    expect(inputs.garment_photo_type).toBe("flat-lay");
+    // 明示 jpeg，與後端儲存的 image/jpeg 一致
+    expect(inputs.output_format).toBe("jpeg");
+    expect(inputs.category).toBe("tops");
+  });
+
+  it("每次送出帶隨機整數 seed（0 ~ 2^32-1），避免重新生成產出同一張圖", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "job-xyz" }),
+    } as unknown as Response);
+
+    const provider = new FashnVTOProvider();
+    const input = {
+      personImage: Buffer.from([1]),
+      garmentImage: Buffer.from([2]),
+      garmentType: "tops" as const,
+    };
+    await provider.submit(input);
+    const seedA = lastSubmitInputs().seed as number;
+    await provider.submit(input);
+    const seedB = lastSubmitInputs().seed as number;
+
+    for (const seed of [seedA, seedB]) {
+      expect(Number.isInteger(seed)).toBe(true);
+      expect(seed).toBeGreaterThanOrEqual(0);
+      expect(seed).toBeLessThanOrEqual(2 ** 32 - 1);
+    }
+    // 兩次送出用不同 seed，才能讓「重新生成」拿到不同結果（FASHN 預設固定 seed=42）
+    expect(seedA).not.toBe(seedB);
+  });
+});
+
 describe("FashnVTOProvider.checkStatus：狀態分支", () => {
   const fetchMock = vi.fn();
 

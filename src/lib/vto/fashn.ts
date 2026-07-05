@@ -34,7 +34,16 @@ export class FashnVTOProvider implements VTOProvider {
           model_image: toBase64DataUri(input.personImage, "image/jpeg"),
           garment_image: toBase64DataUri(input.garmentImage, "image/png"),
           category: input.garmentType, // "tops"
-          mode: "balanced",
+          // quality 與 balanced 在 v1.6 同價（皆 1 credit/張），是零成本的品質升級；
+          // quality 約 12–17 秒，仍在前端 120 秒輪詢上限內。
+          mode: "quality",
+          // 每次送出都用隨機 seed：FASHN 預設固定 seed=42，會讓「重新生成」每次
+          // 產出同一張圖、白白扣額度。隨機 seed（0 ~ 2^32-1）讓重試能拿到不同結果。
+          seed: Math.floor(Math.random() * 2 ** 32),
+          // 商品圖都是平拍去背圖，明示 flat-lay 比讓 auto 自行猜測更穩定。
+          garment_photo_type: "flat-lay",
+          // 明示輸出 JPEG，與後端儲存的 contentType: "image/jpeg" 一致（預設會回 PNG）。
+          output_format: "jpeg",
         },
       }),
     });
