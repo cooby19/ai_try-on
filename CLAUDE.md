@@ -181,6 +181,41 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 - **安全檢查不可移除**：`personImagePath` 必須以 `{userId}/` 開頭的驗證、`loadOwnedJob` 的 `user_id` 過濾、`loadImageAsPngBuffer` 的路徑跳脫檢查。
 - **改 `quota.ts` / `validation.ts` / `vto/fashn.ts` 前先跑 `npm run test`**：這三個模組有單元測試釘住行為邊界（額度上限、時區換算、訊息文案）。行為是刻意調整時，同步更新對應測試與其註解；不要為了讓測試變綠而放寬斷言。
 
+### 6.1 codebase-memory-mcp 使用守則（選用工具）
+
+> 前提：此 MCP 為 local scope，僅部分開發機可用。若工具清單中沒有
+> `mcp__codebase-memory-mcp__*`，跳過本節，改用內建 Grep/Glob/Read。
+> 所有工具的 `project` 參數一律填：`Users-sihanchen-AI_try-on`
+
+**核心原則：先查圖譜，再讀檔案。** 找「定義、關係、影響面」用圖譜（快、省 token）；只有確認目標後才 Read 完整檔案。
+
+**工具選擇（依任務對號入座）：**
+
+| 任務 | 工具與用法 |
+|---|---|
+| Session 開始、要全局視角 | `get_architecture(aspects=["all"])` — 一次即可，session 內重用結果 |
+| 讀取專案既有決策與取捨 | `manage_adr(mode="get")` — **每次接到修改任務先讀這個**，內含不可違反的設計取捨 |
+| 找函式/類別/route 定義 | `search_graph`：自然語言用 `query`（BM25，camelCase 自動拆詞）；精確名稱用 `name_pattern`（regex）；近義詞用 `semantic_query`（**必須是字串陣列**，如 `["upload","resize"]`） |
+| 找字串/註解/文案出處 | `search_code`（圖譜增強 grep）：預設 `mode="compact"` 省 token，必要才 `"full"`；用 `path_filter` 縮小範圍 |
+| **改動任何函式之前** | `trace_path(function_name, direction="inbound")` 先看誰依賴它；影響面大（如 `getSupabaseAdmin`、`jsonError`）就提高謹慎度 |
+| 追資料流（值如何流動） | `trace_path(mode="data_flow", parameter_name=...)` |
+| 讀單一符號的原始碼 | 先 `search_graph` 拿 `qualified_name` → `get_code_snippet`（不要用短名瞎猜） |
+| 多跳關係、聚合、複雜度熱點 | `query_graph`（Cypher）。節點：Function/Method/Class/Interface/File/Module/Variable/EnvVar；邊：CALLS/IMPORTS/DEFINES/CONFIGURES/TESTS_FILE/IMPLEMENTS/USAGE。Function 節點帶 complexity/cognitive/loop_depth/transitive_loop_depth/linear_scan_in_loop 等屬性可直接查 |
+| 改完程式碼之後 | `detect_changes` 看影響 → `index_repository(mode="fast")` 重建索引（結構性大改才用 `moderate`/`full`；語意搜尋需要 moderate 以上） |
+| 完成重大設計決策後 | `manage_adr(mode="update")` 回寫（六節：PURPOSE/STACK/ARCHITECTURE/PATTERNS/TRADEOFFS/PHILOSOPHY，整份覆寫，先 get 再合併） |
+
+**分頁與 token 紀律：**
+
+- 回應帶 `total`/`has_more`：先用 `label`、`file_pattern`、`min_degree` 縮小，不要盲目翻頁。
+- `query_graph` 在 Cypher 內自帶 `LIMIT`。
+
+**紅線（違反即停止並回報）：**
+
+1. `index_repository` 的 `persistence` 永遠保持 `false`——repo 內不得出現 `.codebase-memory/`。
+2. 不得將 `.env*` 內容、API key、service role key 放入任何查詢、輸出、ADR 或索引操作；圖譜的 `EnvVar` 節點只能用於「引用位置」分析，不得嘗試取值。
+3. 涉及 quota、auth、Supabase RLS、FASHN、migration 的結論只能輸出「分析與修改計畫」，未經使用者明確核准不得動工。
+4. 圖譜是輔助索引，不是真相來源——關鍵修改前仍須 Read 實際檔案確認現況。
+
 ## 7. 已知限制與待改善項目
 
 - **只支援上衣**：`garmentType` 寫死 `"tops"`；褲子/洋裝/外套、全身照、多件試穿刻意留到之後（架構已預留 `category` 欄位與 `garmentType` 參數）。
