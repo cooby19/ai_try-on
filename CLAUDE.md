@@ -88,6 +88,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
    - 驗證 `personImagePath` 必須以 `{userId}/` 開頭（防止拿別人的照片生成）。
    - `checkGenerationQuota()` 檢查每日 3 次與每商品 3 次（首次 + 2 次重試）上限。
    - 建立 `try_on_jobs` 紀錄（**建立紀錄本身就是額度 +1**，設計上刻意不用計數器欄位，避免不同步）。
+   - 插入後、呼叫 provider 前，`verifyJobWithinQuota()` 以 (created_at, id) 名次複驗額度（防前置檢查與插入之間的並發競態）：競態落敗列會被**整列刪除**並回 429——該列從未呼叫 AI API、零成本，是 3.2「保留 job 列」規則的刻意例外（詳見 `quota.ts` 註解）。
    - 從 Storage 下載人物照、載入上衣圖 → `provider.submit()` → 狀態改 `processing`，回傳 `jobId`。
    - 送出失敗時：狀態改 `failed` 並寫 `error_message`，回 502——**失敗仍占額度**（已產生 API 成本）。
 4. 前端每 2 秒輪詢 `GET /api/try-on/[jobId]`（上限 120 秒）：

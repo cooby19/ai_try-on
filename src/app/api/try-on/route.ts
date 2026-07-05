@@ -5,7 +5,12 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUserId } from "@/lib/user";
 import { getSupabaseAdmin, PERSON_BUCKET } from "@/lib/supabase";
-import { checkGenerationQuota, recordTryOnJob, updateJobStatus } from "@/lib/quota";
+import {
+  checkGenerationQuota,
+  recordTryOnJob,
+  updateJobStatus,
+  verifyJobWithinQuota,
+} from "@/lib/quota";
 import { getVTOProvider } from "@/lib/vto";
 import { loadImageAsPngBuffer } from "@/lib/images";
 import { jsonError, errorMessage } from "@/lib/http";
@@ -57,6 +62,22 @@ export async function POST(req: Request) {
     });
 
     try {
+      // 3.5 插入後複驗名次：步驟 2 的檢查與步驟 3 的插入非原子，並發請求可能
+      // 同時通過檢查而超額；在真正花錢（provider.submit）之前用確定性名次做
+      // 最終判定，競態落敗列會被刪除（為什麼可以刪，見 quota.ts 的註解）。
+      // 若複驗查詢本身失敗會 throw，由下方 catch 標記 failed——列保留、不花錢。
+      const verification = await verifyJobWithinQuota({
+        jobId: job.id,
+        userId,
+        productId: body.productId,
+        retryCount: quota.productAttemptsToday,
+      });
+      if (!verification.allowed) {
+        return jsonError(429, verification.reason ?? "已達生成上限。", {
+          remainingToday: verification.remainingToday,
+        });
+      }
+
       // 4. 載入圖片並送出到 VTO provider
       const { data: personFile, error: downloadError } = await supabase.storage
         .from(PERSON_BUCKET)
@@ -79,7 +100,8 @@ export async function POST(req: Request) {
         jobId: job.id,
         status: "processing",
         costEstimate: provider.costEstimate,
-        remainingToday: quota.remainingToday - 1,
+        // 用複驗後的剩餘次數（已含並發請求），比「前置檢查 - 1」在競態下更準
+        remainingToday: verification.remainingToday,
       });
     } catch (e) {
       // 失敗也要留下紀錄（status / error_message / 成本都已寫入）
