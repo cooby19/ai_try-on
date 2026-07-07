@@ -151,6 +151,19 @@ export default function TryOnLauncher({ product }: { product: Product }) {
     }
   }
 
+  // 重新生成專用：結果頁按鈕會進到這裡，先二次確認再生成。
+  // 「建立 job = 額度 +1」，一點就扣一格今日額度，結果頁按鈕又密集，
+  // 因此比照 deleteRecord 的原生 confirm 慣例加一道確認，避免誤點白扣額度。
+  // 刻意只包在重新生成：第一次生成的「開始 AI 試穿」已是使用者刻意動作，不再攔。
+  function handleRegenerate() {
+    // quota 尚未載入（fetch 失敗）時退用不帶數字的簡短文案，避免顯示 undefined
+    const message = quota
+      ? `重新生成會使用一次今日額度（今日還剩 ${quota.remainingToday} 次、此商品還可生成 ${quota.remainingRetriesForProduct} 次），確定要繼續嗎？`
+      : "重新生成會使用一次今日額度，確定要繼續嗎？";
+    if (!confirm(message)) return;
+    handleGenerate();
+  }
+
   function resetToUpload() {
     setStep("upload");
     setPersonPath(null);
@@ -264,7 +277,8 @@ export default function TryOnLauncher({ product }: { product: Product }) {
                 canRegenerate={
                   (quota?.remainingToday ?? 0) > 0 && (quota?.remainingRetriesForProduct ?? 0) > 0
                 }
-                onRegenerate={handleGenerate}
+                onRegenerate={handleRegenerate}
+                onChangePhoto={resetToUpload}
                 onDeleted={resetToUpload}
                 // 結果頁也放選擇器：重新生成沿用上次選擇，但允許先改選再按「重新生成」
                 modelSelector={
@@ -342,8 +356,11 @@ function UploadStep({
           <li>上衣區域清楚可見，手自然放下、不要抱胸</li>
           <li>避免包包、手機擋住身體</li>
           <li>光線充足、不要太暗或太模糊</li>
-          <li>支援 JPG / PNG / WebP，8MB 以內（建議寬度 768～1024px）</li>
+          <li>支援 JPG / PNG / WebP，8MB 以內（建議寬度 1080～1440px）</li>
         </ul>
+        <p className="mt-3 text-xs text-stone-500">
+          拍攝建議：明亮均勻的光線、正面站姿、雙手自然放下、背景乾淨、身上穿著合身上衣。
+        </p>
       </div>
       <label className="mt-4 block">
         <input

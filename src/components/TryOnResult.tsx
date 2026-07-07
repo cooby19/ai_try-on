@@ -11,6 +11,7 @@ export default function TryOnResult({
   personPreview,
   canRegenerate,
   onRegenerate,
+  onChangePhoto,
   onDeleted,
   modelSelector,
 }: {
@@ -19,6 +20,9 @@ export default function TryOnResult({
   personPreview: string;
   canRegenerate: boolean;
   onRegenerate: () => void;
+  // 非破壞性回到上傳步驟（換自己的照片再試）：只清前端狀態、不刪照片與 job 列，
+  // 與「刪除這次試穿的照片」（onDeleted，會真的 DELETE 檔案）語意刻意區分開
+  onChangePhoto: () => void;
   onDeleted: () => void;
   // 生成模型選擇器（選填）：狀態由 TryOnLauncher 持有，這裡只負責擺在「重新生成」附近，
   // 讓使用者重按前可以改選模型；mock 模式不會傳入
@@ -152,6 +156,12 @@ export default function TryOnResult({
           className="rounded-lg border border-stone-300 px-4 py-2.5 text-sm hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           重新生成
+        </button>
+        <button
+          onClick={onChangePhoto}
+          className="rounded-lg border border-stone-300 px-4 py-2.5 text-sm hover:bg-stone-50"
+        >
+          換一張照片
         </button>
         <button
           onClick={deleteRecord}
