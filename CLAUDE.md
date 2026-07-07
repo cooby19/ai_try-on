@@ -39,8 +39,9 @@ src/
     ├── vto/
     │   ├── provider.ts         # VTOProvider 介面（submit + checkStatus 兩段式）
     │   ├── mock.ts             # mock provider：3 秒後回傳合成示範圖
-    │   ├── fashn.ts            # FASHN API adapter
-    │   └── index.ts            # provider factory（依 VTO_PROVIDER 環境變數）
+    │   ├── fashn.ts            # FASHN API adapter（tryon-v1.6）
+    │   ├── fashn-max.ts        # FASHN Try-On Max adapter（共用 FASHN_API_KEY）
+    │   └── index.ts            # provider factory + 使用者模型白名單（v1.6/max → provider 名稱）
     ├── supabase.ts             # service role client + signed URL（僅限後端）
     ├── quota.ts                # 額度檢查與 try_on_jobs 讀寫
     ├── user.ts                 # 匿名 cookie 使用者
@@ -56,7 +57,7 @@ vitest.config.ts                  # Vitest 設定（node 環境、@/* alias）
 eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 ```
 
-單元測試檔與被測檔同層（`src/lib/quota.test.ts`、`src/lib/validation.test.ts`、`src/lib/vto/fashn.test.ts`），上面的樹狀圖省略未列。
+單元測試檔與被測檔同層（`src/lib/quota.test.ts`、`src/lib/validation.test.ts`、`src/lib/vto/fashn.test.ts`、`src/lib/vto/fashn-max.test.ts`、`src/lib/vto/index.test.ts`），上面的樹狀圖省略未列。
 
 ### 2.2 分層關係
 
@@ -82,10 +83,11 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 
 ### 3.1 AI 試穿主流程
 
-1. 商品頁點「AI 試穿」→ `TryOnLauncher` 開 modal，先打 `GET /api/quota?productId=` 顯示剩餘額度。
+1. 商品頁點「AI 試穿」→ `TryOnLauncher` 開 modal，先打 `GET /api/quota?productId=` 顯示剩餘額度；回應中的 `defaultModel`（`"v1.6" | "max" | null`）決定是否顯示生成模型選擇器（`null` = mock 模式，隱藏選擇器）。
 2. 使用者上傳照片 → `POST /api/upload`：驗證格式（JPG/PNG/WebP、≤8MB、寬度 ≥320px）→ sharp 依 EXIF 轉正、壓成寬度 ≤1024 的 JPEG → 存入私有 bucket `person-uploads`（路徑 `{userId}/{uuid}.jpg`）→ 回傳 Storage 路徑 + 預覽用 signed URL。
 3. 按「開始 AI 試穿」→ `POST /api/try-on`：
    - 驗證 `personImagePath` 必須以 `{userId}/` 開頭（防止拿別人的照片生成）。
+   - 選用欄位 `model`（`"v1.6"` 或 `"max"`）經 `resolveVTOProviderName()` 白名單映射成 provider 名稱（`fashn` / `fashn-max`）：不合法值回 400（此時尚未建 job、不占額度）；`VTO_PROVIDER=mock` 時忽略選擇一律用 mock；未傳則沿用 `VTO_PROVIDER` 預設。**前端不得直接傳 provider 內部名稱**（防止注入 `mock` 取得免費假結果）。兩種模型共用同一套每日額度，不分開計。
    - `checkGenerationQuota()` 檢查每日 3 次與每商品 3 次（首次 + 2 次重試）上限。
    - 建立 `try_on_jobs` 紀錄（**建立紀錄本身就是額度 +1**，設計上刻意不用計數器欄位，避免不同步）。
    - 插入後、呼叫 provider 前，`verifyJobWithinQuota()` 以 (created_at, id) 名次複驗額度（防前置檢查與插入之間的並發競態）：競態落敗列會被**整列刪除**並回 429——該列從未呼叫 AI API、零成本，是 3.2「保留 job 列」規則的刻意例外（詳見 `quota.ts` 註解）。
@@ -108,11 +110,11 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 | Method | Path | 說明 |
 |---|---|---|
 | POST | `/api/upload` | 上傳人物照（驗證 → 壓縮 → 私有 bucket） |
-| POST | `/api/try-on` | 建立試穿任務（額度檢查 → 呼叫 provider） |
+| POST | `/api/try-on` | 建立試穿任務（額度檢查 → 呼叫 provider）；選用 body 欄位 `model: "v1.6" \| "max"` 選擇生成模型 |
 | GET | `/api/try-on/[jobId]` | 輪詢任務狀態（processing 時順便向 provider 查進度） |
 | DELETE | `/api/try-on/[jobId]` | 刪除照片、保留 job 列（隱私） |
 | POST | `/api/feedback` | 滿意 / 不滿意回饋 |
-| GET | `/api/quota?productId=` | 查詢剩餘額度 |
+| GET | `/api/quota?productId=` | 查詢剩餘額度；回應含 `defaultModel`（`null` = 不開放選模型） |
 
 錯誤回應統一格式：`{ status: "failed", message: "<可操作的繁中訊息>" }`（見 `src/lib/http.ts`）。
 
@@ -125,7 +127,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 | 樣式 | Tailwind CSS 4（`@tailwindcss/postcss`） | `globals.css` 只有 `@import "tailwindcss"` 與字型設定；統一淺色主題 |
 | 圖片處理 | sharp | 轉正、壓縮、SVG 點陣化、mock 合成 |
 | 資料庫 / 儲存 | Supabase（`@supabase/supabase-js`） | Postgres + 私有 Storage bucket；只用 service role key，於後端使用 |
-| AI 生成 | 可替換的 VTO provider | `mock`（預設，免 key）／`fashn`（[FASHN API](https://docs.fashn.ai)，`tryon-v1.6`，約 USD 0.075/張） |
+| AI 生成 | 可替換的 VTO provider | `mock`（預設，免 key）／`fashn`（[FASHN API](https://docs.fashn.ai)，`tryon-v1.6`，約 USD 0.075/張）／`fashn-max`（`tryon-max`，約 USD 0.15/張，與 `fashn` 共用 `FASHN_API_KEY`；使用者可在前端於 v1.6 / Max 之間切換） |
 | 測試 | Vitest 4 | `npm run test`；測試檔為 `src/**/*.test.ts`，node 環境，完全離線（mock Supabase 與 fetch，不花 API 錢） |
 | Lint | ESLint 9（flat config） | `npm run lint`；`eslint-config-next` 的 core-web-vitals + typescript 設定。**Next.js 16 已移除 `next lint`**，一律走 ESLint CLI |
 

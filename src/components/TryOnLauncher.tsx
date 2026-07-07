@@ -3,7 +3,7 @@
 // 上傳照片（含規範提示）→ 預覽 → 開始試穿 → 輪詢生成狀態 → 顯示結果與回饋。
 // 前端只呼叫自家後端 API，完全接觸不到 AI API key。
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Product, TryOnJobView } from "@/lib/types";
+import type { Product, TryOnJobView, TryOnModel } from "@/lib/types";
 import TryOnResult from "./TryOnResult";
 
 const POLL_INTERVAL_MS = 2000;
@@ -15,6 +15,8 @@ interface Quota {
   remainingToday: number;
   remainingRetriesForProduct: number;
   dailyLimit: number;
+  // 目前環境的預設生成模型；null 代表後端不開放選模型（mock 模式），前端隱藏選擇器
+  defaultModel: TryOnModel | null;
 }
 
 export default function TryOnLauncher({ product }: { product: Product }) {
@@ -26,12 +28,18 @@ export default function TryOnLauncher({ product }: { product: Product }) {
   const [job, setJob] = useState<TryOnJobView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [quota, setQuota] = useState<Quota | null>(null);
+  const [model, setModel] = useState<TryOnModel | null>(null);
   const pollAbort = useRef<{ stop: boolean }>({ stop: false });
 
   const refreshQuota = useCallback(async () => {
     try {
       const res = await fetch(`/api/quota?productId=${product.id}`);
-      if (res.ok) setQuota(await res.json());
+      if (res.ok) {
+        const data: Quota = await res.json();
+        setQuota(data);
+        // 首次載入以環境預設模型初始化選擇器；之後刷新額度不覆蓋使用者的選擇
+        setModel((current) => current ?? data.defaultModel);
+      }
     } catch {
       /* 額度顯示失敗不擋流程 */
     }
@@ -83,7 +91,12 @@ export default function TryOnLauncher({ product }: { product: Product }) {
       const res = await fetch("/api/try-on", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: product.id, personImagePath: personPath }),
+        // model 只在可選模型的環境才會有值；未選（mock 模式）不帶欄位，後端沿用環境預設
+        body: JSON.stringify({
+          productId: product.id,
+          personImagePath: personPath,
+          ...(model ? { model } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -212,6 +225,11 @@ export default function TryOnLauncher({ product }: { product: Product }) {
                     <figcaption className="mt-1 text-xs text-stone-500 text-center">要試穿的上衣</figcaption>
                   </figure>
                 </div>
+                {quota?.defaultModel && model && (
+                  <div className="mt-4">
+                    <ModelSelector value={model} onChange={setModel} />
+                  </div>
+                )}
                 <div className="mt-5 flex gap-3">
                   <button
                     onClick={handleGenerate}
@@ -248,12 +266,61 @@ export default function TryOnLauncher({ product }: { product: Product }) {
                 }
                 onRegenerate={handleGenerate}
                 onDeleted={resetToUpload}
+                // 結果頁也放選擇器：重新生成沿用上次選擇，但允許先改選再按「重新生成」
+                modelSelector={
+                  quota?.defaultModel && model ? (
+                    <ModelSelector value={model} onChange={setModel} />
+                  ) : undefined
+                }
               />
             )}
           </div>
         </div>
       )}
     </>
+  );
+}
+
+// 生成模型選擇器：只在後端回報可選模型（quota.defaultModel 非 null）時顯示。
+// 文案只講速度與品質差異，不透出內部成本數字——成本記在 job.cost_estimate 供後台統計。
+function ModelSelector({
+  value,
+  onChange,
+}: {
+  value: TryOnModel;
+  onChange: (model: TryOnModel) => void;
+}) {
+  const options: { key: TryOnModel; label: string; hint: string }[] = [
+    { key: "v1.6", label: "標準", hint: "速度較快，日常預覽適用" },
+    { key: "max", label: "高品質", hint: "細節更好，生成時間較長" },
+  ];
+  return (
+    <fieldset>
+      <legend className="mb-1.5 text-xs text-stone-500">生成模型</legend>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((opt) => (
+          <label
+            key={opt.key}
+            className={`cursor-pointer rounded-lg border px-3 py-2 transition-colors ${
+              value === opt.key
+                ? "border-stone-800 bg-stone-50"
+                : "border-stone-200 hover:border-stone-400"
+            }`}
+          >
+            <input
+              type="radio"
+              name="tryon-model"
+              value={opt.key}
+              checked={value === opt.key}
+              onChange={() => onChange(opt.key)}
+              className="sr-only"
+            />
+            <span className="block text-sm font-medium">{opt.label}</span>
+            <span className="mt-0.5 block text-xs text-stone-500">{opt.hint}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

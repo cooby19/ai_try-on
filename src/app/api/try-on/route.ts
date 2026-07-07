@@ -11,7 +11,7 @@ import {
   updateJobStatus,
   verifyJobWithinQuota,
 } from "@/lib/quota";
-import { getVTOProvider } from "@/lib/vto";
+import { getVTOProvider, resolveVTOProviderName } from "@/lib/vto";
 import { loadImageAsPngBuffer } from "@/lib/images";
 import { jsonError, errorMessage } from "@/lib/http";
 import type { Product } from "@/lib/types";
@@ -22,11 +22,18 @@ export async function POST(req: Request) {
     const body = (await req.json().catch(() => null)) as {
       productId?: string;
       personImagePath?: string;
+      model?: unknown; // 使用者選的生成模型（選填）；型別與白名單驗證交給 resolveVTOProviderName
     } | null;
 
     // 1. 驗證輸入
     if (!body?.productId || !body?.personImagePath) {
       return jsonError(400, "缺少商品或人物照片資訊，請重新操作一次。");
+    }
+    // 使用者選的模型走白名單映射成 provider 名稱（防止直接注入任意 provider）；
+    // 不合法值直接擋下，不建 job——此時尚未占用額度。
+    const providerName = resolveVTOProviderName(body.model);
+    if (!providerName) {
+      return jsonError(400, "不支援的生成模型，請重新整理頁面後再選擇一次。");
     }
     // 人物照路徑必須屬於目前使用者，防止拿別人的照片生成
     if (!body.personImagePath.startsWith(`${userId}/`)) {
@@ -50,7 +57,9 @@ export async function POST(req: Request) {
     }
 
     // 3. 建立任務紀錄（status = pending；建立紀錄本身就是額度 +1）
-    const provider = getVTOProvider();
+    // provider 由上面白名單解析的名稱決定；providerName / costEstimate 會寫進 job，
+    // 之後輪詢用 job.provider 還原，所以選 Max 的任務全程都走 Max。
+    const provider = getVTOProvider(providerName);
     const job = await recordTryOnJob({
       userId,
       productId: body.productId,

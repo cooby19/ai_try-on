@@ -1,7 +1,7 @@
 "use client";
 // 試穿結果（規格書第十、十一節）：原圖 / 結果對比、免責文案、
 // 滿意 / 不滿意回饋、重新生成、加入購物車、刪除紀錄（隱私）。
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Product, TryOnJobView, FeedbackRating } from "@/lib/types";
 import AddToCartButton from "./AddToCartButton";
 
@@ -12,6 +12,7 @@ export default function TryOnResult({
   canRegenerate,
   onRegenerate,
   onDeleted,
+  modelSelector,
 }: {
   job: TryOnJobView;
   product: Product;
@@ -19,6 +20,9 @@ export default function TryOnResult({
   canRegenerate: boolean;
   onRegenerate: () => void;
   onDeleted: () => void;
+  // 生成模型選擇器（選填）：狀態由 TryOnLauncher 持有，這裡只負責擺在「重新生成」附近，
+  // 讓使用者重按前可以改選模型；mock 模式不會傳入
+  modelSelector?: ReactNode;
 }) {
   const [feedback, setFeedback] = useState<FeedbackRating | null>(null);
   const [feedbackBusy, setFeedbackBusy] = useState(false);
@@ -134,6 +138,9 @@ export default function TryOnResult({
           👎 不滿意
         </button>
       </div>
+
+      {/* 重新生成前可改選模型 */}
+      {modelSelector && <div className="mt-4">{modelSelector}</div>}
 
       {/* 動作列 */}
       <div className="mt-5 flex flex-wrap gap-3">
