@@ -42,6 +42,10 @@ src/
     │   ├── fashn.ts            # FASHN API adapter（tryon-v1.6）
     │   ├── fashn-max.ts        # FASHN Try-On Max adapter（共用 FASHN_API_KEY）
     │   └── index.ts            # provider factory + 使用者模型白名單（v1.6/max → provider 名稱）
+    ├── enhance/
+    │   ├── enhancer.ts         # ImageEnhancer 介面（結果圖放大後處理）
+    │   ├── realesrgan.ts       # Real-ESRGAN 2× 放大 adapter（Replicate API）
+    │   └── index.ts            # enhancer factory + 降級策略（ENHANCE_PROVIDER，預設 none）
     ├── supabase.ts             # service role client + signed URL（僅限後端）
     ├── quota.ts                # 額度檢查與 try_on_jobs 讀寫
     ├── user.ts                 # 匿名 cookie 使用者
@@ -57,7 +61,7 @@ vitest.config.ts                  # Vitest 設定（node 環境、@/* alias）
 eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 ```
 
-單元測試檔與被測檔同層（`src/lib/quota.test.ts`、`src/lib/validation.test.ts`、`src/lib/vto/fashn.test.ts`、`src/lib/vto/fashn-max.test.ts`、`src/lib/vto/index.test.ts`），上面的樹狀圖省略未列。
+單元測試檔與被測檔同層（`src/lib/quota.test.ts`、`src/lib/validation.test.ts`、`src/lib/vto/fashn.test.ts`、`src/lib/vto/fashn-max.test.ts`、`src/lib/vto/index.test.ts`、`src/lib/enhance/index.test.ts`、`src/lib/enhance/realesrgan.test.ts`），上面的樹狀圖省略未列。
 
 ### 2.2 分層關係
 
@@ -95,6 +99,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
    - 送出失敗時：狀態改 `failed` 並寫 `error_message`，回 502——**失敗仍占額度**（已產生 API 成本）。
 4. 前端每 2 秒輪詢 `GET /api/try-on/[jobId]`（上限 120 秒）：
    - 後端向 provider `checkStatus()`；成功時把結果圖存入私有 bucket `try-on-results`，狀態改 `success`。
+   - 存檔前有一道選配的**放大後處理**（`src/lib/enhance/`，`ENHANCE_PROVIDER` 驅動、預設 `none` 停用）：只針對 v1.6（`fashn`）的結果做 2× 放大（864×1296 → 1728×2592，補其與 Max 的解析度缺口），mock / fashn-max 跳過；實際執行放大時把放大成本加進 `cost_estimate`。**放大失敗一律降級回原圖、job 仍標 `success`**——使用者已扣額度，選配後處理不能讓生成報廢。硬逾時 30 秒（`ENHANCE_TIMEOUT_MS`），總延遲留在前端 120 秒輪詢上限內。
    - 回傳 `TryOnJobView`（圖片一律轉成 1 小時 signed URL，不回傳 Storage 路徑以外的內部資訊）。
 5. 結果頁（`TryOnResult`）：原圖 / 結果對比、免責文案、滿意/不滿意回饋（`POST /api/feedback`）、重新生成、刪除照片。
 
@@ -139,6 +144,8 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 | `SUPABASE_SERVICE_ROLE_KEY` | service role key，**只能在後端使用** |
 | `VTO_PROVIDER` | `mock`（預設）或 `fashn` |
 | `FASHN_API_KEY` | 僅 `VTO_PROVIDER=fashn` 時需要 |
+| `ENHANCE_PROVIDER` | `none`（預設，停用放大後處理）或 `realesrgan`（Real-ESRGAN 2× 放大，經 Replicate，約 USD 0.0025/張；只作用於 v1.6 的結果） |
+| `REPLICATE_API_TOKEN` | 僅 `ENHANCE_PROVIDER=realesrgan` 時需要，**只能在後端使用** |
 
 `.gitignore` 已排除 `.env*`；`.env.local` 永遠不可提交。
 

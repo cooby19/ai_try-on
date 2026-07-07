@@ -5,6 +5,7 @@ import { getUserId } from "@/lib/user";
 import { getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET, createSignedUrl } from "@/lib/supabase";
 import { updateJobStatus } from "@/lib/quota";
 import { getVTOProvider } from "@/lib/vto";
+import { enhanceResultImage } from "@/lib/enhance";
 import type { VTOSubmitInput } from "@/lib/vto/provider";
 import { loadImageAsPngBuffer } from "@/lib/images";
 import { jsonError, errorMessage } from "@/lib/http";
@@ -52,12 +53,16 @@ export async function GET(_req: Request, { params }: RouteParams) {
 
       const result = await provider.checkStatus(job.provider_job_id, ctx);
       if (result.status === "success") {
+        // 存檔前先做放大後處理（目前只針對 v1.6，補其 864×1296 的解析度缺口；
+        // mock / fashn-max 直接跳過）。放大失敗會在 enhance 層降級回原圖，
+        // 這裡拿到的 image 永遠可用，job 照常標 success。
+        const enhanceOutcome = await enhanceResultImage(result.resultImage, job.provider);
         // 結果圖存進私有 bucket，前端只拿短期 signed URL
         const resultPath = `${job.user_id}/${job.id}.jpg`;
         const supabase = getSupabaseAdmin();
         const { error: uploadError } = await supabase.storage
           .from(RESULT_BUCKET)
-          .upload(resultPath, result.resultImage, { contentType: "image/jpeg", upsert: true });
+          .upload(resultPath, enhanceOutcome.image, { contentType: "image/jpeg", upsert: true });
         if (uploadError) {
           await updateJobStatus(job.id, {
             status: "failed",
@@ -67,6 +72,21 @@ export async function GET(_req: Request, { params }: RouteParams) {
         } else {
           await updateJobStatus(job.id, { status: "success", result_image_url: resultPath });
           job = { ...job, status: "success", result_image_url: resultPath };
+          if (enhanceOutcome.enhanced) {
+            // 只有真的執行了放大才把放大成本加進 cost_estimate（降級時不加）。
+            // 刻意不擴充 quota.ts 的 updateJobStatus 欄位——那是額度模組，本功能不動它；
+            // cost_estimate 純供成本統計，更新失敗只記 log、不影響回給使用者的結果。
+            const newCost = Number(job.cost_estimate) + enhanceOutcome.extraCost;
+            const { error: costError } = await supabase
+              .from("try_on_jobs")
+              .update({ cost_estimate: newCost, updated_at: new Date().toISOString() })
+              .eq("id", job.id);
+            if (costError) {
+              console.error(`更新放大成本失敗（job ${job.id}）：`, costError.message);
+            } else {
+              job = { ...job, cost_estimate: newCost };
+            }
+          }
         }
       } else if (result.status === "failed") {
         await updateJobStatus(job.id, { status: "failed", error_message: result.errorMessage });
