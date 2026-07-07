@@ -6,7 +6,12 @@ import sharp from "sharp";
 export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 export const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB
 export const MIN_IMAGE_WIDTH = 320; // 太小的圖生成品質會很差
-export const TARGET_MAX_WIDTH = 1024; // 規格書建議壓縮到 768~1024px
+// 上傳壓縮是整條品質管線的第一關：FASHN tryon-v1.6 的輸出不會超過輸入解析度
+// （上限 864×1296），舊值 1024（規格書建議 768~1024px）在非 3:4 比例的照片上
+// 高度常低於 1296，會逼 v1.6 降解析度輸出。1440 讓 3:4 直幅照高約 1920，
+// 穩定覆蓋 1296 並留裁切餘裕；FASHN 官方前處理指南建議 1K 端點最長邊 ≤2000px，
+// 1920 在範圍內（https://docs.fashn.ai/guides/image-preprocessing-best-practices）。
+export const TARGET_MAX_WIDTH = 1440;
 
 export type ValidationResult =
   | { ok: true }
@@ -22,7 +27,7 @@ export function validateFileMeta(file: { type: string; size: number }): Validati
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return {
       ok: false,
-      message: "照片超過 8MB。建議先用手機或電腦把照片縮小（寬度 768～1024px 就足夠）再上傳。",
+      message: "照片超過 8MB。請換一張較小的照片，或先把照片稍微縮小（寬度 1440px 以內即可）再上傳。",
     };
   }
   if (file.size === 0) {
@@ -31,7 +36,7 @@ export function validateFileMeta(file: { type: string; size: number }): Validati
   return { ok: true };
 }
 
-// 確認圖片真的可以解碼，並統一轉成寬度最多 1024px 的 JPEG。
+// 確認圖片真的可以解碼，並統一轉成寬度最多 TARGET_MAX_WIDTH 的 JPEG。
 // 回傳處理後的 buffer；失敗時回傳可操作的錯誤訊息。
 export async function normalizePersonImage(
   input: Buffer
@@ -47,7 +52,10 @@ export async function normalizePersonImage(
     }
     const buffer = await image
       .resize({ width: TARGET_MAX_WIDTH, withoutEnlargement: true })
-      .jpeg({ quality: 88 })
+      // q88 會先吃掉膚質／髮絲／布料紋理等高頻細節，成為 VTO 輸入品質的瓶頸；
+      // q92 保留細節、檔案增幅可控（官方指南建議 q≈95，92 是與流量的折衷）。
+      // 維持 JPEG 不改 PNG：照片存 PNG 體積暴增 5~10 倍，且存檔路徑與 contentType 都綁 JPEG。
+      .jpeg({ quality: 92 })
       .toBuffer();
     return { ok: true, buffer };
   } catch {

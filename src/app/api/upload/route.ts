@@ -1,5 +1,5 @@
 // POST /api/upload — 上傳人物照片
-// 流程：驗證檔案 → 轉正 + 壓縮成寬度 ≤1024 的 JPEG → 存進「私有」bucket →
+// 流程：驗證檔案 → 轉正 + 壓縮成寬度 ≤1440 的 JPEG → 存進「私有」bucket →
 // 回傳 Storage 路徑（給 /api/try-on 用）與短期 signed URL（給前端預覽）。
 import { NextResponse } from "next/server";
 import { getOrCreateUserId } from "@/lib/user";

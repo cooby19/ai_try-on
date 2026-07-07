@@ -53,13 +53,15 @@ describe("validateFileMeta：大小邊界", () => {
     ).toEqual({ ok: true });
   });
 
-  it("8MB + 1 byte 拒絕，訊息建議先縮小照片", () => {
-    expect(
-      validateFileMeta({ type: "image/jpeg", size: MAX_FILE_SIZE_BYTES + 1 })
-    ).toMatchObject({
+  it("8MB + 1 byte 拒絕，訊息附與 TARGET_MAX_WIDTH 一致的建議寬度", () => {
+    const result = validateFileMeta({ type: "image/jpeg", size: MAX_FILE_SIZE_BYTES + 1 });
+    expect(result).toMatchObject({
       ok: false,
       message: expect.stringContaining("8MB"),
     });
+    // 釘住文案裡的建議寬度：它必須跟著 TARGET_MAX_WIDTH 走，
+    // 否則文案（叫使用者縮到某寬度）會與實際壓縮行為漂移、自相矛盾
+    expect((result as { message: string }).message).toContain(`${TARGET_MAX_WIDTH}`);
   });
 
   it("空檔案（size = 0）拒絕", () => {
@@ -96,11 +98,13 @@ describe("normalizePersonImage：統一輸出規格", () => {
   });
 
   it("介於下限與目標寬度之間的圖不會被放大（withoutEnlargement）", async () => {
-    // 放大只會產生模糊像素、增加檔案大小，對生成品質沒有幫助
-    const result = await normalizePersonImage(await makeImage(600));
+    // 放大只會產生模糊像素、增加檔案大小，對生成品質沒有幫助。
+    // 1200 刻意取在舊上限 1024 與新上限 1440 之間：釘住「提高 TARGET_MAX_WIDTH 後
+    // 這個區間的照片不再被縮小」的新邊界（縮小會白丟 v1.6 需要的輸入解析度）。
+    const result = await normalizePersonImage(await makeImage(1200));
     if (!result.ok) throw new Error(`預期通過，卻被拒絕：${result.message}`);
     const meta = await sharp(result.buffer).metadata();
-    expect(meta.width).toBe(600);
+    expect(meta.width).toBe(1200);
     expect(meta.format).toBe("jpeg");
   });
 

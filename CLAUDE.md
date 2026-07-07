@@ -88,7 +88,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 ### 3.1 AI 試穿主流程
 
 1. 商品頁點「AI 試穿」→ `TryOnLauncher` 開 modal，先打 `GET /api/quota?productId=` 顯示剩餘額度；回應中的 `defaultModel`（`"v1.6" | "max" | null`）決定是否顯示生成模型選擇器（`null` = mock 模式，隱藏選擇器）。
-2. 使用者上傳照片 → `POST /api/upload`：驗證格式（JPG/PNG/WebP、≤8MB、寬度 ≥320px）→ sharp 依 EXIF 轉正、壓成寬度 ≤1024 的 JPEG → 存入私有 bucket `person-uploads`（路徑 `{userId}/{uuid}.jpg`）→ 回傳 Storage 路徑 + 預覽用 signed URL。
+2. 使用者上傳照片 → `POST /api/upload`：驗證格式（JPG/PNG/WebP、≤8MB、寬度 ≥320px）→ sharp 依 EXIF 轉正、壓成寬度 ≤1440 的 JPEG（quality 92，補 v1.6 的輸入解析度）→ 存入私有 bucket `person-uploads`（路徑 `{userId}/{uuid}.jpg`）→ 回傳 Storage 路徑 + 預覽用 signed URL。
 3. 按「開始 AI 試穿」→ `POST /api/try-on`：
    - 驗證 `personImagePath` 必須以 `{userId}/` 開頭（防止拿別人的照片生成）。
    - 選用欄位 `model`（`"v1.6"` 或 `"max"`）經 `resolveVTOProviderName()` 白名單映射成 provider 名稱（`fashn` / `fashn-max`）：不合法值回 400（此時尚未建 job、不占額度）；`VTO_PROVIDER=mock` 時忽略選擇一律用 mock；未傳則沿用 `VTO_PROVIDER` 預設。**前端不得直接傳 provider 內部名稱**（防止注入 `mock` 取得免費假結果）。兩種模型共用同一套每日額度，不分開計。
