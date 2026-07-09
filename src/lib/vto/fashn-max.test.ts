@@ -141,4 +141,26 @@ describe("FashnMaxVTOProvider.checkStatus：狀態機重用 v1.6 邏輯", () => 
       errorMessage: expect.stringContaining("內容檢查"),
     });
   });
+
+  // 下面兩個暫時性分支雖與 fashn.test.ts 同構，但 Max 的 checkStatus 是獨立複製的
+  // 程式碼（非共用函式），不能只靠 v1.6 的測試蓋住，必須各自釘住。
+
+  it("狀態查詢本身失敗（HTTP 429）→ processing，交給前端 120 秒輪詢窗重試", async () => {
+    // 單次查詢失敗不代表任務失敗：Max 端任務可能已完成且已計費（2 credits/張，
+    // 是 v1.6 的兩倍），此時標 failed 報廢的成本更高。
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, { ok: false, status: 429 }));
+    const result = await new FashnMaxVTOProvider().checkStatus("max-job-1");
+    expect(result).toEqual({ status: "processing" });
+  });
+
+  it("completed 但結果圖下載失敗 → processing（下次輪詢重新拿 completed 再重試下載）", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ status: "completed", output: ["https://cdn.example/max.jpg"] })
+      )
+      .mockResolvedValueOnce({ ok: false, status: 503 } as unknown as Response);
+
+    const result = await new FashnMaxVTOProvider().checkStatus("max-job-1");
+    expect(result).toEqual({ status: "processing" });
+  });
 });

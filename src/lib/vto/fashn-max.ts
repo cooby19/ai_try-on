@@ -73,7 +73,11 @@ export class FashnMaxVTOProvider implements VTOProvider {
       headers: { Authorization: `Bearer ${this.apiKey}` },
     });
     if (!res.ok) {
-      return { status: "failed", errorMessage: `FASHN 狀態查詢失敗（HTTP ${res.status}）` };
+      // 單次狀態查詢失敗（429 rate limit、5xx 瞬斷等）不代表任務失敗——
+      // FASHN 端任務可能已完成且已計費，此時標 failed 會報廢已付費的結果。
+      // 回 processing 讓前端 120 秒輪詢窗自然重試（與 fashn.ts 同構的取捨）。
+      console.warn(`FASHN 狀態查詢暫時失敗（HTTP ${res.status}），等待下次輪詢重試：${providerJobId}`);
+      return { status: "processing" };
     }
     const data = (await res.json()) as {
       status: "starting" | "in_queue" | "processing" | "completed" | "failed";
@@ -84,7 +88,10 @@ export class FashnMaxVTOProvider implements VTOProvider {
     if (data.status === "completed" && data.output?.[0]) {
       const imageRes = await fetch(data.output[0]);
       if (!imageRes.ok) {
-        return { status: "failed", errorMessage: "結果圖下載失敗，請重新生成一次。" };
+        // CDN 偶發失敗：任務其實已完成，下次輪詢會重新拿到 completed 狀態
+        // （含可能刷新的 output URL）再重試下載，不要因單次下載失敗報廢結果。
+        console.warn(`FASHN 結果圖下載暫時失敗（HTTP ${imageRes.status}），等待下次輪詢重試：${providerJobId}`);
+        return { status: "processing" };
       }
       return { status: "success", resultImage: Buffer.from(await imageRes.arrayBuffer()) };
     }

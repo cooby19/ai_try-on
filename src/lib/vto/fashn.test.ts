@@ -186,7 +186,9 @@ describe("FashnVTOProvider.checkStatus：狀態分支", () => {
     expect(result.resultImage).toEqual(Buffer.from(bytes));
   });
 
-  it("completed 但結果圖下載失敗 → failed，訊息引導重新生成", async () => {
+  it("completed 但結果圖下載失敗 → processing（任務已完成且已計費，單次下載失敗不可報廢結果）", async () => {
+    // CDN 偶發失敗屬暫時性：下次輪詢會重新拿到 completed（含可能刷新的 URL）再重試下載。
+    // 若在此標 failed，route 會把 job 永久寫死，使用者額度已扣卻拿不到本可拿到的圖。
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({ status: "completed", output: ["https://cdn.example/result.png"] })
@@ -194,10 +196,7 @@ describe("FashnVTOProvider.checkStatus：狀態分支", () => {
       .mockResolvedValueOnce({ ok: false, status: 404 } as unknown as Response);
 
     const result = await new FashnVTOProvider().checkStatus("job-123");
-    expect(result).toMatchObject({
-      status: "failed",
-      errorMessage: expect.stringContaining("重新生成"),
-    });
+    expect(result).toEqual({ status: "processing" });
   });
 
   it("failed（error 為物件）→ 錯誤經 mapFashnError 轉譯", async () => {
@@ -222,14 +221,17 @@ describe("FashnVTOProvider.checkStatus：狀態分支", () => {
     });
   });
 
-  it("狀態查詢本身失敗（HTTP 非 2xx）→ failed 並附狀態碼", async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, { ok: false, status: 500 }));
-    const result = await new FashnVTOProvider().checkStatus("job-123");
-    expect(result).toMatchObject({
-      status: "failed",
-      errorMessage: expect.stringContaining("HTTP 500"),
-    });
-  });
+  it.each([429, 500, 503])(
+    "狀態查詢本身失敗（HTTP %i）→ processing，交給前端 120 秒輪詢窗重試",
+    async (status) => {
+      // 誤判成本不對稱：把「暫時」判成「永久」會報廢 FASHN 端已完成、已計費的任務；
+      // 把「永久」判成「暫時」最壞只是等滿 120 秒逾時。因此非 200 一律視為暫時性，
+      // 只有 provider 明確回 data.status === "failed" 才是終局（見下方 failed 分支測試）。
+      fetchMock.mockResolvedValueOnce(jsonResponse({}, { ok: false, status }));
+      const result = await new FashnVTOProvider().checkStatus("job-123");
+      expect(result).toEqual({ status: "processing" });
+    }
+  );
 
   it("未設定 FASHN_API_KEY → 直接拒絕，訊息指向 .env.local 設定", async () => {
     // 空字串視同未設定：避免帶著空 Authorization 打真實 API
