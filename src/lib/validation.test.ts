@@ -10,6 +10,7 @@ import {
   MIN_IMAGE_WIDTH,
   TARGET_MAX_WIDTH,
   normalizePersonImage,
+  toJpegUploadBlob,
   validateFileMeta,
 } from "@/lib/validation";
 
@@ -126,5 +127,16 @@ describe("normalizePersonImage：無法解碼", () => {
       ok: false,
       message: expect.stringContaining("無法辨識"),
     });
+  });
+});
+
+describe("toJpegUploadBlob：二進位上傳格式", () => {
+  it("完整保留 JPEG bytes，不把非 UTF-8 位元轉成 replacement character", async () => {
+    // JPEG SOI + DQT 開頭包含連續 0xff/0xd8/0xdb，正是先前 Vercel 文字轉碼會破壞的位元。
+    const jpegBytes = Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43, 0x80, 0xfe]);
+    const blob = toJpegUploadBlob(jpegBytes);
+
+    expect(blob.type).toBe("image/jpeg");
+    expect(Array.from(new Uint8Array(await blob.arrayBuffer()))).toEqual(Array.from(jpegBytes));
   });
 });

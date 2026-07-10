@@ -65,3 +65,11 @@ export async function normalizePersonImage(
     };
   }
 }
+
+// Supabase Storage 雖接受 Node Buffer，但 Next.js/Vercel 的 server fetch 路徑可能把它當文字處理，
+// 將 JPEG 的 0xff 等非 UTF-8 位元改寫成 replacement character（ef bf bd）。明確轉成 Blob 後，
+// storage-js 會使用 multipart/form-data 的二進位分支上傳，避免任何文字轉碼。
+export function toJpegUploadBlob(buffer: Buffer): Blob {
+  const bytes = Uint8Array.from(buffer);
+  return new Blob([bytes], { type: "image/jpeg" });
+}

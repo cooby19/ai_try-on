@@ -4,7 +4,7 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUserId } from "@/lib/user";
 import { getSupabaseAdmin, PERSON_BUCKET, imageProxyUrl } from "@/lib/supabase";
-import { validateFileMeta, normalizePersonImage } from "@/lib/validation";
+import { validateFileMeta, normalizePersonImage, toJpegUploadBlob } from "@/lib/validation";
 import { checkUploadQuota } from "@/lib/quota";
 import { jsonError, errorMessage } from "@/lib/http";
 
@@ -34,9 +34,10 @@ export async function POST(req: Request) {
     // 路徑以 userId 開頭，後端可藉此驗證「這張圖是這個使用者上傳的」
     const path = `${userId}/${crypto.randomUUID()}.jpg`;
     const supabase = getSupabaseAdmin();
+    const uploadBody = toJpegUploadBlob(normalized.buffer);
     const { error } = await supabase.storage
       .from(PERSON_BUCKET)
-      .upload(path, normalized.buffer, { contentType: "image/jpeg" });
+      .upload(path, uploadBody, { contentType: "image/jpeg" });
     if (error) {
       return jsonError(500, `照片上傳失敗（${error.message}），請再試一次。`);
     }
