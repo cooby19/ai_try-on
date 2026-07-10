@@ -22,8 +22,9 @@ npm install
 ### 2. 建立 Supabase 專案
 
 1. 到 [supabase.com](https://supabase.com) 建立免費專案
-2. 進 **SQL Editor**，貼上並執行 `supabase/migrations/001_init.sql`
-   （會建立 4 張資料表、2 個私有 storage bucket、3 件種子商品）
+2. 進 **SQL Editor**，依序貼上並執行 `supabase/migrations/` 下的 SQL 檔：
+   - `001_init.sql`（4 張資料表、2 個私有 storage bucket、3 件種子商品）
+   - `002_atomic_quota_insert.sql`（額度檢查＋插入的原子函式；未執行的話「開始 AI 試穿」會直接失敗）
 
 ### 3. 設定環境變數
 
@@ -126,7 +127,7 @@ src/
 │   ├── page.tsx        # 商品列表
 │   └── products/[id]/  # 商品頁
 └── components/         # TryOnLauncher（modal）/ TryOnResult / AddToCartButton
-supabase/migrations/001_init.sql   # 資料表 + bucket + 種子資料
+supabase/migrations/               # 001 資料表 + bucket + 種子資料；002 原子額度插入函式
 ```
 
 ## 未來擴充（刻意不在第一版做）

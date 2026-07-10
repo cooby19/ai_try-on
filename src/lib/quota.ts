@@ -30,7 +30,7 @@ export interface QuotaCheck {
   remainingRetriesForProduct: number;
 }
 
-// 額度訊息文案：前置檢查（checkGenerationQuota）與插入後複驗（verifyJobWithinQuota）
+// 額度訊息文案：前置檢查（checkGenerationQuota）與原子插入（recordTryOnJob）
 // 都會把這些文案回給使用者，抽成共用函式避免兩處各寫一份逐漸漂移
 // （單元測試釘住文案內容，漂移會直接紅）。
 function dailyLimitReason(): string {
@@ -74,7 +74,31 @@ export async function checkGenerationQuota(userId: string, productId: string): P
   return { allowed: true, usedToday, remainingToday, productAttemptsToday, remainingRetriesForProduct };
 }
 
-// 建立 try_on_jobs 紀錄（同時就是額度的 +1）
+export interface TryOnJobCreation {
+  allowed: boolean;
+  reason?: string;
+  remainingToday: number; // 判定後的當日剩餘次數（成功時已把自己算進去）
+  job?: TryOnJob; // allowed = true 時必有值
+}
+
+// insert_try_on_job_within_quota（migration 002）回傳的 jsonb 形狀。
+interface AtomicInsertResult {
+  allowed: boolean;
+  reject_reason?: "daily" | "product";
+  used_today: number;
+  product_attempts_today: number;
+  job?: TryOnJob;
+}
+
+// 建立 try_on_jobs 紀錄（同時就是額度的 +1），額度檢查與插入在 DB 端原子完成。
+//
+// 為什麼走 RPC 而不是在應用層「SELECT 計數 → INSERT → 複驗」：
+// 那三步不是原子操作。舊的複驗機制以 (created_at, id) 排名判定並發勝負，
+// 但 created_at 是交易「開始」時間、資料可見性卻跟隨「commit」順序，
+// 兩者倒置時（先開始者較晚 commit）並發雙方可各自算出自己在限內、
+// 雙雙放行而超額。migration 002 的 Postgres 函式用 pg_advisory_xact_lock
+// 序列化「同一使用者＋同一天」的計數＋插入，才能保證當日筆數嚴格不超過上限。
+// 時區邊界（p_since）與額度常數仍由本模組傳入，維持單一出處。
 export async function recordTryOnJob(input: {
   userId: string;
   productId: string;
@@ -82,103 +106,44 @@ export async function recordTryOnJob(input: {
   garmentImageUrl: string;
   provider: string;
   costEstimate: number;
-  retryCount: number;
-}): Promise<TryOnJob> {
+}): Promise<TryOnJobCreation> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("try_on_jobs")
-    .insert({
-      user_id: input.userId,
-      product_id: input.productId,
-      person_image_url: input.personImagePath,
-      garment_image_url: input.garmentImageUrl,
-      provider: input.provider,
-      status: "pending",
-      cost_estimate: input.costEstimate,
-      retry_count: input.retryCount,
-    })
-    .select()
-    .single();
-  if (error) throw new Error(`建立試穿任務失敗：${error.message}`);
-  return data as TryOnJob;
-}
-
-export interface QuotaVerification {
-  allowed: boolean;
-  reason?: string;
-  remainingToday: number; // 本次任務判定後的當日剩餘次數（勝出時已把自己算進去）
-}
-
-// 插入後複驗（防併發額度競態）：
-// checkGenerationQuota（SELECT 計數）與 recordTryOnJob（INSERT）非原子，
-// 並發請求可能同時通過前置檢查再各自插入，超額 job 會一路執行到
-// provider.submit() 產生真實 API 成本。這裡在「已插入、尚未呼叫 AI API」的
-// 時間點重查當日全部 job，以 (created_at, id) 排序取得確定性名次：
-// 名次超限者即競態落敗，刪列並拒絕——錢在花掉之前就被擋下。
-// INSERT 經 Supabase REST 已各自提交，並發雙方重查時看到相同資料、
-// 算出相同勝負（恰好由較早插入者勝出），當日實際送出 provider 的
-// 任務數因此嚴格不超過上限。
-export async function verifyJobWithinQuota(input: {
-  jobId: string;
-  userId: string;
-  productId: string;
-  retryCount: number; // 插入時寫入的 retry_count（= 前置檢查的 productAttemptsToday）
-}): Promise<QuotaVerification> {
-  const supabase = getSupabaseAdmin();
-  const since = todayStartUtcIso();
-
-  const { data, error } = await supabase
-    .from("try_on_jobs")
-    .select("id, product_id, created_at")
-    .eq("user_id", input.userId)
-    .gte("created_at", since);
-  if (error) throw new Error(`額度驗證失敗：${error.message}`);
-
-  // created_at 可能同毫秒，補 id 作 tie-break：並發雙方各自排序的結果
-  // 必須完全一致，勝負判定才不會兩邊都自認贏家（或兩敗俱傷）。
-  const rows = [...data].sort((a, b) => {
-    const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    if (diff !== 0) return diff;
-    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  const { data, error } = await supabase.rpc("insert_try_on_job_within_quota", {
+    p_user_id: input.userId,
+    p_product_id: input.productId,
+    p_person_image_url: input.personImagePath,
+    p_garment_image_url: input.garmentImageUrl,
+    p_provider: input.provider,
+    p_cost_estimate: input.costEstimate,
+    p_since: todayStartUtcIso(),
+    p_daily_limit: DAILY_GENERATION_LIMIT,
+    p_product_attempt_limit: 1 + PER_PRODUCT_RETRY_LIMIT,
   });
+  if (error) throw new Error(`建立試穿任務失敗：${error.message}`);
 
-  const dailyRank = rows.findIndex((r) => r.id === input.jobId);
-  const productRank = rows
-    .filter((r) => r.product_id === input.productId)
-    .findIndex((r) => r.id === input.jobId);
+  // 回傳形狀不符（如 migration 002 尚未執行、或函式被改壞）一律 throw，
+  // 不能默默當成功或當額度充足放行（fail-closed，與額度查詢失敗同一原則）。
+  const result = data as AtomicInsertResult | null;
+  if (!result || typeof result.allowed !== "boolean") {
+    throw new Error("建立試穿任務失敗：額度函式回傳格式異常（請確認 migration 002 已執行）。");
+  }
 
-  // 重查理應包含自己剛插入的列；找不到代表計數已不可信，
-  // 依「寧可多扣、不可少扣」原則視為落敗（fail-closed），不冒多花錢的風險。
-  const overDaily = dailyRank === -1 || dailyRank >= DAILY_GENERATION_LIMIT;
-  const overProduct = productRank === -1 || productRank >= 1 + PER_PRODUCT_RETRY_LIMIT;
-
-  if (overDaily || overProduct) {
-    // 刪除競態落敗列。CLAUDE.md「刪除時保留 job 列」防的是「生成後刪列刷額度」
-    // ——那些 job 已呼叫 AI API、產生成本；這筆從未到達 submit、零成本，
-    // 留著反而讓使用者被拒絕（429）還白扣一格額度，因此是刻意授權的例外。
-    // 刪除失敗也不擋路（不檢查 error）：列留著只是多占一格額度（多扣安全），
-    // 不會多花錢（少扣才危險）。
-    await supabase.from("try_on_jobs").delete().eq("id", input.jobId);
+  if (!result.allowed) {
+    // 拒絕文案由程式端對應（daily / product），與前置檢查共用同一組函式，
+    // 使用者在兩條路徑看到一字不差的訊息。
     return {
       allowed: false,
-      reason: overDaily ? dailyLimitReason() : productLimitReason(),
-      remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - (rows.length - 1)),
+      reason: result.reject_reason === "product" ? productLimitReason() : dailyLimitReason(),
+      remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - result.used_today),
     };
   }
-
-  if (productRank !== input.retryCount) {
-    // 並發下兩筆可能在前置檢查拿到相同的 productAttemptsToday，
-    // 以複驗名次修正 retry_count。此欄位僅供成本統計，
-    // 更新失敗不阻斷主流程（不影響額度計算與金額）。
-    await supabase
-      .from("try_on_jobs")
-      .update({ retry_count: productRank, updated_at: new Date().toISOString() })
-      .eq("id", input.jobId);
+  if (!result.job) {
+    throw new Error("建立試穿任務失敗：額度函式未回傳任務資料。");
   }
-
   return {
     allowed: true,
-    remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - rows.length),
+    job: result.job,
+    remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - result.used_today),
   };
 }
 

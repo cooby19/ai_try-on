@@ -53,7 +53,7 @@ src/
     ├── images.ts               # 圖片載入、轉 PNG、base64 工具
     ├── http.ts                 # jsonError / errorMessage 共用工具
     └── types.ts                # 共用型別（對應資料表 + API view）
-supabase/migrations/001_init.sql  # 資料表、RLS、GRANT、bucket、種子商品
+supabase/migrations/              # 001 資料表、RLS、GRANT、bucket、種子商品；002 原子額度插入函式（advisory lock）
 public/garments/                  # 種子商品的上衣圖（SVG / JPG）
 public/samples/sample-person.jpg  # 測試用人物照
 .claude/launch.json               # preview 用 dev server 設定（npm run dev，port 3000）
@@ -92,9 +92,8 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 3. 按「開始 AI 試穿」→ `POST /api/try-on`：
    - 驗證 `personImagePath` 必須以 `{userId}/` 開頭（防止拿別人的照片生成）。
    - 選用欄位 `model`（`"v1.6"` 或 `"max"`）經 `resolveVTOProviderName()` 白名單映射成 provider 名稱（`fashn` / `fashn-max`）：不合法值回 400（此時尚未建 job、不占額度）；`VTO_PROVIDER=mock` 時忽略選擇一律用 mock；未傳則沿用 `VTO_PROVIDER` 預設。**前端不得直接傳 provider 內部名稱**（防止注入 `mock` 取得免費假結果）。兩種模型共用同一套每日額度，不分開計。
-   - `checkGenerationQuota()` 檢查每日 3 次與每商品 3 次（首次 + 2 次重試）上限。
-   - 建立 `try_on_jobs` 紀錄（**建立紀錄本身就是額度 +1**，設計上刻意不用計數器欄位，避免不同步）。
-   - 插入後、呼叫 provider 前，`verifyJobWithinQuota()` 以 (created_at, id) 名次複驗額度（防前置檢查與插入之間的並發競態）：競態落敗列會被**整列刪除**並回 429——該列從未呼叫 AI API、零成本，是 3.2「保留 job 列」規則的刻意例外（詳見 `quota.ts` 註解）。
+   - `checkGenerationQuota()` 前置檢查每日 3 次與每商品 3 次（首次 + 2 次重試）上限——非原子、僅供快速失敗與友善訊息，防併發的最終判定在下一步。
+   - `recordTryOnJob()` 呼叫 Postgres 函式 `insert_try_on_job_within_quota`（migration 002）**原子**完成「額度計數＋插入 `try_on_jobs`」：函式內以 `pg_advisory_xact_lock` 序列化同一使用者當日的插入，當日筆數嚴格不超過上限；超額（並發競態落敗）的請求**不插入、直接回 429**——從未呼叫 AI API、零成本。**建立紀錄本身就是額度 +1**，設計上刻意不用計數器欄位，避免不同步；`retry_count` 由函式在鎖內算出。時區起點與額度常數由 `quota.ts` 傳入函式，維持單一出處。
    - 從 Storage 下載人物照、載入上衣圖 → `provider.submit()` → 狀態改 `processing`，回傳 `jobId`。
    - 送出失敗時：狀態改 `failed` 並寫 `error_message`，回 502——**失敗仍占額度**（已產生 API 成本）。
 4. 前端每 2 秒輪詢 `GET /api/try-on/[jobId]`（上限 120 秒）：
@@ -187,7 +186,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 - **Next.js 16 與你的訓練資料不同**（見根目錄 AGENTS.md）：寫任何 Next.js 相關程式前，先讀 `node_modules/next/dist/docs/` 的對應章節，並留意棄用警告。
 - **額度機制不要改成計數器欄位**：額度 = 統計 `try_on_jobs` 當日筆數（台北時區 UTC+8），「建立 job」即「額度 +1」，沒有同步問題；改成計數器會重新引入不同步風險。
 - **新增 VTO provider 的正確方式**：實作 `src/lib/vto/provider.ts` 的 `VTOProvider` 介面 → 在 `src/lib/vto/index.ts` factory 註冊名稱；API route 與前端不需要改。
-- **改資料庫結構**：在 `supabase/migrations/` 新增 SQL 檔（目前只有 `001_init.sql`，需在 Supabase SQL Editor 手動執行），同時更新 `src/lib/types.ts` 的對應型別。
+- **改資料庫結構**：在 `supabase/migrations/` 新增 SQL 檔（目前有 `001_init.sql`、`002_atomic_quota_insert.sql`，需在 Supabase SQL Editor 依序手動執行），同時更新 `src/lib/types.ts` 的對應型別。
 - **安全檢查不可移除**：`personImagePath` 必須以 `{userId}/` 開頭的驗證、`loadOwnedJob` 的 `user_id` 過濾、`loadImageAsPngBuffer` 的路徑跳脫檢查。
 - **改 `quota.ts` / `validation.ts` / `vto/fashn.ts` 前先跑 `npm run test`**：這三個模組有單元測試釘住行為邊界（額度上限、時區換算、訊息文案）。行為是刻意調整時，同步更新對應測試與其註解；不要為了讓測試變綠而放寬斷言。
 

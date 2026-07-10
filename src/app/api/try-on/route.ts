@@ -9,7 +9,6 @@ import {
   checkGenerationQuota,
   recordTryOnJob,
   updateJobStatus,
-  verifyJobWithinQuota,
 } from "@/lib/quota";
 import { getVTOProvider, resolveVTOProviderName } from "@/lib/vto";
 import { loadImageAsPngBuffer } from "@/lib/images";
@@ -48,7 +47,8 @@ export async function POST(req: Request) {
       .single<Product>();
     if (!product) return jsonError(404, "找不到這個商品，請重新整理頁面。");
 
-    // 2. 檢查生成額度（每日 3 次、每商品重試 2 次）
+    // 2. 前置額度檢查（每日 3 次、每商品重試 2 次）。
+    // 非原子、僅供快速失敗與友善訊息；防併發的最終判定在步驟 3 的原子插入。
     const quota = await checkGenerationQuota(userId, body.productId);
     if (!quota.allowed) {
       return jsonError(429, quota.reason ?? "已達生成上限。", {
@@ -56,37 +56,29 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. 建立任務紀錄（status = pending；建立紀錄本身就是額度 +1）
+    // 3. 原子建立任務紀錄（status = pending；建立紀錄本身就是額度 +1）。
+    // 額度檢查與插入在 DB 函式內以 advisory lock 序列化（見 quota.ts 與
+    // migration 002），並發請求最多只有限額內的筆數能插入成功——
+    // 超額請求在這裡被拒絕，從未到達 provider.submit()，零成本。
     // provider 由上面白名單解析的名稱決定；providerName / costEstimate 會寫進 job，
     // 之後輪詢用 job.provider 還原，所以選 Max 的任務全程都走 Max。
     const provider = getVTOProvider(providerName);
-    const job = await recordTryOnJob({
+    const creation = await recordTryOnJob({
       userId,
       productId: body.productId,
       personImagePath: body.personImagePath,
       garmentImageUrl: product.garment_image_url,
       provider: provider.providerName,
       costEstimate: provider.costEstimate,
-      retryCount: quota.productAttemptsToday,
     });
+    if (!creation.allowed || !creation.job) {
+      return jsonError(429, creation.reason ?? "已達生成上限。", {
+        remainingToday: creation.remainingToday,
+      });
+    }
+    const job = creation.job;
 
     try {
-      // 3.5 插入後複驗名次：步驟 2 的檢查與步驟 3 的插入非原子，並發請求可能
-      // 同時通過檢查而超額；在真正花錢（provider.submit）之前用確定性名次做
-      // 最終判定，競態落敗列會被刪除（為什麼可以刪，見 quota.ts 的註解）。
-      // 若複驗查詢本身失敗會 throw，由下方 catch 標記 failed——列保留、不花錢。
-      const verification = await verifyJobWithinQuota({
-        jobId: job.id,
-        userId,
-        productId: body.productId,
-        retryCount: quota.productAttemptsToday,
-      });
-      if (!verification.allowed) {
-        return jsonError(429, verification.reason ?? "已達生成上限。", {
-          remainingToday: verification.remainingToday,
-        });
-      }
-
       // 4. 載入圖片並送出到 VTO provider
       const { data: personFile, error: downloadError } = await supabase.storage
         .from(PERSON_BUCKET)
@@ -109,8 +101,8 @@ export async function POST(req: Request) {
         jobId: job.id,
         status: "processing",
         costEstimate: provider.costEstimate,
-        // 用複驗後的剩餘次數（已含並發請求），比「前置檢查 - 1」在競態下更準
-        remainingToday: verification.remainingToday,
+        // 用原子插入判定後的剩餘次數（已含並發請求），比「前置檢查 - 1」在競態下更準
+        remainingToday: creation.remainingToday,
       });
     } catch (e) {
       // 失敗也要留下紀錄（status / error_message / 成本都已寫入）

@@ -7,8 +7,8 @@ import {
   DAILY_GENERATION_LIMIT,
   PER_PRODUCT_RETRY_LIMIT,
   checkGenerationQuota,
+  recordTryOnJob,
   todayStartUtcIso,
-  verifyJobWithinQuota,
 } from "@/lib/quota";
 
 // checkGenerationQuota 只依賴 Supabase 的查詢結果（當日 job 列表），
@@ -183,236 +183,121 @@ describe("查詢失敗", () => {
 });
 
 // ============================================================
-// verifyJobWithinQuota：插入後複驗，併發競態的最後成本防線。
-// 前置檢查（SELECT）與插入（INSERT）非原子，並發請求可同時通過檢查；
-// 這裡釘死「名次判定、落敗刪列、tie-break 確定性」——這些行為若被改壞，
-// 超額 job 會一路走到 provider.submit() 直接花錢。
+// recordTryOnJob：額度檢查＋插入的原子入口（migration 002 的 RPC）。
+// 真正的併發防護（advisory lock、鎖內計數）活在 Postgres 函式裡，
+// 單元測試無法離線驗證；這裡釘死的是應用層的合約——
+// 參數 wiring（時區起點、額度常數）、拒絕文案對應、fail-closed 行為。
+// 這些若被改壞，鎖再正確也會算錯「今天」或放行超額請求。
 // ============================================================
-type VerifyRow = { id: string; product_id: string; created_at: string };
+type RpcResult = {
+  allowed: boolean;
+  reject_reason?: "daily" | "product";
+  used_today: number;
+  product_attempts_today: number;
+  job?: Record<string, unknown>;
+};
 
-const vrow = (id: string, productId: string, createdAt: string): VerifyRow => ({
-  id,
-  product_id: productId,
-  created_at: createdAt,
-});
+const rpcJob = { id: "job-new", retry_count: 0, status: "pending" };
 
-// verifyJobWithinQuota 用到三條查詢鏈：
-//   select().eq().gte()（重查名次）、delete().eq()（刪落敗列）、update().eq()（修 retry_count）
-// 全部 mock 起來，才能驗證「有沒有刪列、有沒有補修正」這些關鍵副作用。
-function mockVerifyQuery(opts: {
-  rows: VerifyRow[] | null;
-  selectError?: { message: string } | null;
-  deleteError?: { message: string } | null;
-}) {
-  const gte = vi
-    .fn()
-    .mockResolvedValue({ data: opts.rows, error: opts.selectError ?? null });
-  const eq = vi.fn().mockReturnValue({ gte });
-  const select = vi.fn().mockReturnValue({ eq });
-  const deleteEq = vi.fn().mockResolvedValue({ error: opts.deleteError ?? null });
-  const deleteFn = vi.fn().mockReturnValue({ eq: deleteEq });
-  const updateEq = vi.fn().mockResolvedValue({ error: null });
-  const update = vi.fn().mockReturnValue({ eq: updateEq });
-  const from = vi.fn().mockReturnValue({ select, delete: deleteFn, update });
+function mockRpc(result: { data: RpcResult | null; error: { message: string } | null }) {
+  const rpc = vi.fn().mockResolvedValue(result);
   vi.mocked(getSupabaseAdmin).mockReturnValue({
-    from,
+    rpc,
   } as unknown as ReturnType<typeof getSupabaseAdmin>);
-  return { from, gte, deleteFn, deleteEq, update, updateEq };
+  return { rpc };
 }
 
-describe("插入後複驗：名次判定", () => {
-  it("名次在上限內：通過，不刪列、retry_count 相符時不多打 update", async () => {
-    const { deleteFn, update } = mockVerifyQuery({
-      rows: [
-        vrow("job-a", "p-a", "2026-07-05T01:00:01.000Z"),
-        vrow("job-b", "p-b", "2026-07-05T01:00:02.000Z"),
-        vrow("job-me", "p-c", "2026-07-05T01:00:03.000Z"),
-      ],
+const recordInput = {
+  userId: "user-1",
+  productId: "p-a",
+  personImagePath: "user-1/photo.jpg",
+  garmentImageUrl: "/garments/white-tee.svg",
+  provider: "fashn",
+  costEstimate: 0.075,
+};
+
+describe("原子插入：參數 wiring", () => {
+  it("時區起點與額度常數由應用層傳入 RPC（單一出處在 quota.ts，傳錯 = DB 端算錯額度）", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T15:59:59Z")); // 台北 23:59:59，今天從 07-03T16:00Z 起算
+    const { rpc } = mockRpc({
+      data: { allowed: true, used_today: 1, product_attempts_today: 0, job: rpcJob },
+      error: null,
     });
-    const result = await verifyJobWithinQuota({
-      jobId: "job-me",
-      userId: "user-1",
-      productId: "p-c",
-      retryCount: 0,
+    await recordTryOnJob(recordInput);
+    expect(rpc).toHaveBeenCalledWith(
+      "insert_try_on_job_within_quota",
+      expect.objectContaining({
+        p_user_id: "user-1",
+        p_product_id: "p-a",
+        p_since: "2026-07-03T16:00:00.000Z",
+        p_daily_limit: DAILY_GENERATION_LIMIT,
+        p_product_attempt_limit: 1 + PER_PRODUCT_RETRY_LIMIT,
+      })
+    );
+  });
+});
+
+describe("原子插入：勝出與拒絕", () => {
+  it("在限內：回傳 job 與「已含自己」的剩餘次數", async () => {
+    mockRpc({
+      data: { allowed: true, used_today: 3, product_attempts_today: 0, job: rpcJob },
+      error: null,
     });
+    const result = await recordTryOnJob(recordInput);
     expect(result.allowed).toBe(true);
-    expect(result.remainingToday).toBe(0); // 3 筆 = 上限，自己是最後一格
-    expect(deleteFn).not.toHaveBeenCalled();
-    expect(update).not.toHaveBeenCalled();
+    expect(result.job?.id).toBe("job-new");
+    expect(result.remainingToday).toBe(0); // used_today = 3 = 上限，自己是最後一格
   });
 
-  it("全日名次超限（自己是第 4 筆）：落敗、刪除自己那列、回每日上限文案", async () => {
-    // 競態的典型結果：兩個請求都通過了前置檢查（各看到 2 筆），插入後變 4 筆。
-    // 較晚插入者名次 = 3（0-based）≥ 每日上限 → 必須在花錢前退出。
-    const { deleteEq } = mockVerifyQuery({
-      rows: [
-        vrow("job-a", "p-1", "2026-07-05T01:00:01.000Z"),
-        vrow("job-b", "p-2", "2026-07-05T01:00:02.000Z"),
-        vrow("job-c", "p-3", "2026-07-05T01:00:03.000Z"),
-        vrow("job-me", "p-4", "2026-07-05T01:00:04.000Z"),
-      ],
+  it("每日超限（競態落敗方）：拒絕、回每日上限文案、不回 job", async () => {
+    // 併發下兩個請求同過前置檢查，advisory lock 序列化後只有先取得鎖者插入成功；
+    // 落敗方拿到 reject_reason = 'daily'，從未插入、零成本。
+    mockRpc({
+      data: { allowed: false, reject_reason: "daily", used_today: 3, product_attempts_today: 1 },
+      error: null,
     });
-    const result = await verifyJobWithinQuota({
-      jobId: "job-me",
-      userId: "user-1",
-      productId: "p-4",
-      retryCount: 0,
-    });
+    const result = await recordTryOnJob(recordInput);
     expect(result.allowed).toBe(false);
+    expect(result.job).toBeUndefined();
     // 文案必須與前置檢查一字不差（前端與使用者看到一致的訊息）
     expect(result.reason).toContain(`${DAILY_GENERATION_LIMIT} 次`);
     expect(result.reason).toContain("明天");
-    expect(deleteEq).toHaveBeenCalledWith("id", "job-me");
     expect(result.remainingToday).toBe(0);
   });
 
-  it("同商品 4 筆：拒絕（目前常數下由每日上限先攔截，同 checkGenerationQuota 的既有註記）", async () => {
-    // 同商品名次 ≤ 全日名次，且兩個上限目前同為 3，每商品分支實際被每日分支先攔截。
-    // 釘死對外行為（拒絕 + 刪列）；未來調高每日上限時，這個測試提醒重看訊息分支。
-    const { deleteEq } = mockVerifyQuery({
-      rows: [
-        vrow("job-a", "p-a", "2026-07-05T01:00:01.000Z"),
-        vrow("job-b", "p-a", "2026-07-05T01:00:02.000Z"),
-        vrow("job-c", "p-a", "2026-07-05T01:00:03.000Z"),
-        vrow("job-me", "p-a", "2026-07-05T01:00:04.000Z"),
-      ],
+  it("每商品超限：拒絕、回每商品上限文案", async () => {
+    // 目前兩個上限同為 3，這個分支要靠 DB 端先判 daily 才輪得到；
+    // 釘住文案對應本身（reject_reason → reason），未來調整常數時分支仍正確。
+    mockRpc({
+      data: { allowed: false, reject_reason: "product", used_today: 3, product_attempts_today: 3 },
+      error: null,
     });
-    const result = await verifyJobWithinQuota({
-      jobId: "job-me",
-      userId: "user-1",
-      productId: "p-a",
-      retryCount: 3,
-    });
+    const result = await recordTryOnJob(recordInput);
     expect(result.allowed).toBe(false);
-    expect(result.reason).toBeTruthy();
-    expect(deleteEq).toHaveBeenCalledWith("id", "job-me");
+    expect(result.reason).toContain(`${PER_PRODUCT_RETRY_LIMIT} 次`);
+    expect(result.reason).toContain("其他商品");
   });
 });
 
-describe("插入後複驗：tie-break 確定性", () => {
-  // created_at 同毫秒時勝負由 id 決定。這兩個測試互為鏡像：
-  // 同一組資料，兩個並發請求必須算出「恰好一勝一敗」，
-  // 否則會兩敗俱傷（都退出）或兩邊都花錢（競態沒修到）。
-  // rows 刻意亂序傳入，順便釘住「名次來自程式內排序，不依賴查詢回傳順序」。
-  const tiedRows = [
-    vrow("job-z", "p-d", "2026-07-05T01:00:03.000Z"),
-    vrow("job-b", "p-b", "2026-07-05T01:00:02.000Z"),
-    vrow("job-m", "p-c", "2026-07-05T01:00:03.000Z"),
-    vrow("job-a", "p-a", "2026-07-05T01:00:01.000Z"),
-  ];
-
-  it("同毫秒插入：id 較小者勝出", async () => {
-    const { deleteFn } = mockVerifyQuery({ rows: tiedRows });
-    const result = await verifyJobWithinQuota({
-      jobId: "job-m",
-      userId: "user-1",
-      productId: "p-c",
-      retryCount: 0,
-    });
-    expect(result.allowed).toBe(true);
-    expect(deleteFn).not.toHaveBeenCalled();
+describe("原子插入：fail-closed", () => {
+  it("RPC 回傳 error：throw，不能默默當成功（與額度查詢失敗同一原則）", async () => {
+    mockRpc({ data: null, error: { message: "connection refused" } });
+    await expect(recordTryOnJob(recordInput)).rejects.toThrow(/建立試穿任務失敗/);
   });
 
-  it("同毫秒插入：id 較大者落敗、被刪列", async () => {
-    const { deleteEq } = mockVerifyQuery({ rows: tiedRows });
-    const result = await verifyJobWithinQuota({
-      jobId: "job-z",
-      userId: "user-1",
-      productId: "p-d",
-      retryCount: 0,
-    });
-    expect(result.allowed).toBe(false);
-    expect(deleteEq).toHaveBeenCalledWith("id", "job-z");
-  });
-});
-
-describe("插入後複驗：防禦性行為", () => {
-  it("刪除失敗：不 throw、仍回 not allowed（寧可多扣一格額度，不冒多花錢的風險）", async () => {
-    const rows = [
-      vrow("job-a", "p-1", "2026-07-05T01:00:01.000Z"),
-      vrow("job-b", "p-2", "2026-07-05T01:00:02.000Z"),
-      vrow("job-c", "p-3", "2026-07-05T01:00:03.000Z"),
-      vrow("job-me", "p-4", "2026-07-05T01:00:04.000Z"),
-    ];
-    mockVerifyQuery({ rows, deleteError: { message: "delete failed" } });
-    const result = await verifyJobWithinQuota({
-      jobId: "job-me",
-      userId: "user-1",
-      productId: "p-4",
-      retryCount: 0,
-    });
-    expect(result.allowed).toBe(false);
+  it("回傳形狀異常（如 migration 002 未執行）：throw，不冒多花錢的風險", async () => {
+    // PostgREST 對不存在的函式會回 error，但防禦「函式存在卻被改壞」的情況：
+    // data 不是預期形狀時放行 = 額度控管整個失效。
+    mockRpc({ data: null, error: null });
+    await expect(recordTryOnJob(recordInput)).rejects.toThrow(/格式異常/);
   });
 
-  it("重查結果找不到自己剛插入的列：fail-closed 視為落敗", async () => {
-    // 理論上不會發生（INSERT 已提交才會走到這裡）；若真發生代表計數不可信，
-    // 安全方向是拒絕（多扣），而不是放行（可能多花錢）。
-    const { deleteEq } = mockVerifyQuery({
-      rows: [vrow("job-a", "p-a", "2026-07-05T01:00:01.000Z")],
+  it("allowed = true 卻沒有 job：throw（沒有任務列就無法輪詢，也代表函式已被改壞）", async () => {
+    mockRpc({
+      data: { allowed: true, used_today: 1, product_attempts_today: 0 },
+      error: null,
     });
-    const result = await verifyJobWithinQuota({
-      jobId: "job-me",
-      userId: "user-1",
-      productId: "p-a",
-      retryCount: 0,
-    });
-    expect(result.allowed).toBe(false);
-    expect(deleteEq).toHaveBeenCalledWith("id", "job-me");
-  });
-
-  it("複驗查詢失敗：throw，不能默默放行（與前置檢查同一原則）", async () => {
-    mockVerifyQuery({ rows: null, selectError: { message: "connection refused" } });
-    await expect(
-      verifyJobWithinQuota({
-        jobId: "job-me",
-        userId: "user-1",
-        productId: "p-a",
-        retryCount: 0,
-      })
-    ).rejects.toThrow(/額度驗證失敗/);
-  });
-});
-
-describe("插入後複驗：retry_count 修正", () => {
-  it("複驗名次與插入時的 retry_count 不符：補一次 update 修正", async () => {
-    // 競態場景：兩個同商品請求都在前置檢查看到 1 筆 → 都拿 productAttemptsToday = 1。
-    // 勝出者的實際名次是 2，不修正的話 retry_count 會污染成本統計。
-    const { update, updateEq } = mockVerifyQuery({
-      rows: [
-        vrow("job-a", "p-a", "2026-07-05T01:00:01.000Z"),
-        vrow("job-b", "p-a", "2026-07-05T01:00:02.000Z"),
-        vrow("job-me", "p-a", "2026-07-05T01:00:03.000Z"),
-      ],
-    });
-    const result = await verifyJobWithinQuota({
-      jobId: "job-me",
-      userId: "user-1",
-      productId: "p-a",
-      retryCount: 1,
-    });
-    expect(result.allowed).toBe(true);
-    expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({ retry_count: 2 })
-    );
-    expect(updateEq).toHaveBeenCalledWith("id", "job-me");
-  });
-});
-
-describe("插入後複驗：台北時區 wiring", () => {
-  it("複驗與前置檢查用同一個「今天的起點」過濾 created_at", async () => {
-    // 兩段檢查若時區邊界不一致，跨日交界的請求會被算進不同的「今天」，
-    // 名次判定就會失真。
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-04T15:59:59Z"));
-    const { gte } = mockVerifyQuery({
-      rows: [vrow("job-me", "p-a", "2026-07-04T10:00:00.000Z")],
-    });
-    await verifyJobWithinQuota({
-      jobId: "job-me",
-      userId: "user-1",
-      productId: "p-a",
-      retryCount: 0,
-    });
-    expect(gte).toHaveBeenCalledWith("created_at", "2026-07-03T16:00:00.000Z");
+    await expect(recordTryOnJob(recordInput)).rejects.toThrow(/未回傳任務資料/);
   });
 });
