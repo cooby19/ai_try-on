@@ -34,3 +34,13 @@ export async function createSignedUrl(bucket: string, path: string): Promise<str
   if (error) return null;
   return data.signedUrl;
 }
+
+// 產生「走自家網域」的私有圖片網址（/api/image/...），取代直接對外的 supabase.co signed URL。
+// 為什麼：有些網路（飯店 / 公司 / 部分地區）會封鎖 supabase.co，瀏覽器直連拿不到圖（破圖）。
+// 改讓瀏覽器只連本站、由後端去 Supabase 取圖回傳，可繞過這類封鎖；權限檢查改在 /api/image 內做
+// （見 src/app/api/image/[...slug]/route.ts）。回傳的是相對路徑，前端當作同源網址使用。
+export function imageProxyUrl(bucket: string, storagePath: string): string {
+  // storagePath 形如 {userId}/{uuid}.jpg；逐段編碼避免特殊字元破壞路由（route 端會自動解碼）
+  const encoded = storagePath.split("/").map(encodeURIComponent).join("/");
+  return `/api/image/${bucket}/${encoded}`;
+}

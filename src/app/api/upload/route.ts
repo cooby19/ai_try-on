@@ -1,9 +1,9 @@
 // POST /api/upload — 上傳人物照片
 // 流程：驗證檔案 → 轉正 + 壓縮成寬度 ≤1440 的 JPEG → 存進「私有」bucket →
-// 回傳 Storage 路徑（給 /api/try-on 用）與短期 signed URL（給前端預覽）。
+// 回傳 Storage 路徑（給 /api/try-on 用）與「走自家網域」的預覽網址（/api/image，給前端預覽）。
 import { NextResponse } from "next/server";
 import { getOrCreateUserId } from "@/lib/user";
-import { getSupabaseAdmin, PERSON_BUCKET, createSignedUrl } from "@/lib/supabase";
+import { getSupabaseAdmin, PERSON_BUCKET, imageProxyUrl } from "@/lib/supabase";
 import { validateFileMeta, normalizePersonImage } from "@/lib/validation";
 import { jsonError, errorMessage } from "@/lib/http";
 
@@ -33,7 +33,8 @@ export async function POST(req: Request) {
       return jsonError(500, `照片上傳失敗（${error.message}），請再試一次。`);
     }
 
-    const previewUrl = await createSignedUrl(PERSON_BUCKET, path);
+    // 預覽走自家網域轉發（避免部分網路封鎖 supabase.co 導致破圖），實際權限在 /api/image 檢查
+    const previewUrl = imageProxyUrl(PERSON_BUCKET, path);
     return NextResponse.json({ status: "success", path, previewUrl });
   } catch (e) {
     return jsonError(500, errorMessage(e));
