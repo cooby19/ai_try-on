@@ -5,12 +5,12 @@
 // 改由後端在伺服器端向 Supabase 取圖、再從「本站網域」吐回給瀏覽器，即可繞過這類封鎖
 // （瀏覽器只跟本站溝通，就像站內靜態圖一樣）。
 //
-// 隱私仍維持：這裡以 cookie 使用者驗證「只能讀自己的圖」——路徑必須以 {userId}/ 開頭，
-// 與 try-on 各處的所有權檢查一致。相較原本「任何人拿到 signed URL 都能看 1 小時」，
-// 這個做法反而更嚴（沒有本人的 cookie 就讀不到）。
+// 隱私維持：網址帶「簽章 + 效期」(?exp&sig)，本身即為限時存取憑證（見 src/lib/supabase.ts
+// 的 imageProxyUrl / verifyImageSignature）——與原本 Supabase signed URL 同樣的限時能力模型，
+// 只是改在自家網域。刻意不用 cookie 驗證：部分瀏覽器不會把 cookie 帶進 <img> 請求，會誤判成
+// 無權限而破圖；憑證放在網址上就沒有這個問題。
 import { NextResponse } from "next/server";
-import { getUserId } from "@/lib/user";
-import { getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET } from "@/lib/supabase";
+import { getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET, verifyImageSignature } from "@/lib/supabase";
 import { jsonError, errorMessage } from "@/lib/http";
 
 type RouteParams = { params: Promise<{ slug: string[] }> };
@@ -18,7 +18,7 @@ type RouteParams = { params: Promise<{ slug: string[] }> };
 // 只開放這兩個私有 bucket，避免這個端點被拿去讀 storage 內其他內容
 const ALLOWED_BUCKETS = new Set<string>([PERSON_BUCKET, RESULT_BUCKET]);
 
-export async function GET(_req: Request, { params }: RouteParams) {
+export async function GET(req: Request, { params }: RouteParams) {
   try {
     const { slug } = await params;
     // slug = [bucket, ...pathParts]；至少要有 bucket + 一段路徑
@@ -31,10 +31,12 @@ export async function GET(_req: Request, { params }: RouteParams) {
     // 路徑跳脫防護：拒絕 .. 之類試圖跳出使用者資料夾的路徑
     if (!storagePath || storagePath.includes("..")) return jsonError(404, "找不到圖片。");
 
-    // 所有權：路徑必須以 {userId}/ 開頭，確保只能讀自己的圖。
+    // 授權：驗證網址上的簽章與效期（憑證即網址），不依賴 cookie。
     // 一律回 404（而非 403），不洩漏「這張圖是否存在」。
-    const userId = await getUserId();
-    if (!userId || !storagePath.startsWith(`${userId}/`)) {
+    const url = new URL(req.url);
+    const exp = Number(url.searchParams.get("exp"));
+    const sig = url.searchParams.get("sig") ?? "";
+    if (!verifyImageSignature(bucket, storagePath, exp, sig)) {
       return jsonError(404, "找不到圖片。");
     }
 
