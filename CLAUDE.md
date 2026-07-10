@@ -61,7 +61,7 @@ vitest.config.ts                  # Vitest 設定（node 環境、@/* alias）
 eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 ```
 
-單元測試檔與被測檔同層（`src/lib/quota.test.ts`、`src/lib/validation.test.ts`、`src/lib/vto/fashn.test.ts`、`src/lib/vto/fashn-max.test.ts`、`src/lib/vto/index.test.ts`、`src/lib/enhance/index.test.ts`、`src/lib/enhance/realesrgan.test.ts`），上面的樹狀圖省略未列。
+單元測試檔與被測檔同層（`src/lib/quota.test.ts`、`src/lib/user.test.ts`、`src/lib/validation.test.ts`、`src/lib/vto/fashn.test.ts`、`src/lib/vto/fashn-max.test.ts`、`src/lib/vto/index.test.ts`、`src/lib/enhance/index.test.ts`、`src/lib/enhance/realesrgan.test.ts`），上面的樹狀圖省略未列。
 
 ### 2.2 分層關係
 

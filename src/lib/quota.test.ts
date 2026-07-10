@@ -3,6 +3,7 @@
 // 改動額度邏輯時若行為改變，測試必須跟著紅（強迫審視成本影響）。
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { ensureUserRow } from "@/lib/user";
 import {
   DAILY_GENERATION_LIMIT,
   PER_PRODUCT_RETRY_LIMIT,
@@ -15,6 +16,12 @@ import {
 // mock 掉 client 之後，額度判斷本身是純邏輯，可以完整離線測試。
 vi.mock("@/lib/supabase", () => ({
   getSupabaseAdmin: vi.fn(),
+}));
+
+// recordTryOnJob 的 FK 自癒路徑會呼叫 ensureUserRow；mock 掉以維持完全離線，
+// 也避免 user.ts 頂層的 next/headers import 進入 node 測試環境。
+vi.mock("@/lib/user", () => ({
+  ensureUserRow: vi.fn(),
 }));
 
 type JobRow = { id: string; product_id: string };
@@ -299,5 +306,59 @@ describe("原子插入：fail-closed", () => {
       error: null,
     });
     await expect(recordTryOnJob(recordInput)).rejects.toThrow(/未回傳任務資料/);
+  });
+});
+
+// ============================================================
+// users 列缺失的自癒路徑（FK 23503）：
+// 首次補列瞬斷、或資料庫重建但使用者帶著一年效期的舊 cookie 時，
+// 插入會踩 try_on_jobs → users 的外鍵。若不自癒，這位使用者之後
+// 每次試穿都失敗、只能自己清 cookie 脫困——這裡釘死「補列一次、
+// 重試一次、僅此一次」的合約。
+// ============================================================
+describe("原子插入：users 列缺失自癒（FK 23503）", () => {
+  const fkError = {
+    message: 'insert or update on table "try_on_jobs" violates foreign key constraint',
+    code: "23503",
+  };
+  const successResult = {
+    data: { allowed: true, used_today: 1, product_attempts_today: 0, job: rpcJob } as RpcResult,
+    error: null,
+  };
+
+  function mockRpcSequence(results: Array<{ data: RpcResult | null; error: { message: string; code?: string } | null }>) {
+    const rpc = vi.fn();
+    for (const r of results) rpc.mockResolvedValueOnce(r);
+    vi.mocked(getSupabaseAdmin).mockReturnValue({
+      rpc,
+    } as unknown as ReturnType<typeof getSupabaseAdmin>);
+    return { rpc };
+  }
+
+  it("首次插入踩 FK：補一次 users 列後重試成功（使用者無感自癒）", async () => {
+    const { rpc } = mockRpcSequence([{ data: null, error: fkError }, successResult]);
+    const result = await recordTryOnJob(recordInput);
+    expect(vi.mocked(ensureUserRow)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(ensureUserRow)).toHaveBeenCalledWith("user-1");
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(result.allowed).toBe(true);
+    expect(result.job?.id).toBe("job-new");
+  });
+
+  it("重試仍踩 FK：只重試一次即回報錯誤（防真正的資料異常變成無限重試）", async () => {
+    const { rpc } = mockRpcSequence([
+      { data: null, error: fkError },
+      { data: null, error: fkError },
+    ]);
+    await expect(recordTryOnJob(recordInput)).rejects.toThrow(/建立試穿任務失敗/);
+    expect(vi.mocked(ensureUserRow)).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("非 FK 錯誤不觸發自癒：直接 throw、不多打一次 RPC（維持 fail-closed）", async () => {
+    const { rpc } = mockRpcSequence([{ data: null, error: { message: "connection refused" } }]);
+    await expect(recordTryOnJob(recordInput)).rejects.toThrow(/建立試穿任務失敗/);
+    expect(vi.mocked(ensureUserRow)).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });

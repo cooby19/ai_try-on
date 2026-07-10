@@ -7,7 +7,11 @@
 // 這樣「建立 job 紀錄」本身就是 incrementGenerationUsage，不會有計數器與紀錄不同步的問題。
 // 失敗的生成也計入額度（因為已經呼叫過 AI API、產生了成本）。
 import { getSupabaseAdmin } from "./supabase";
+import { ensureUserRow } from "./user";
 import type { JobStatus, TryOnJob } from "./types";
+
+// Postgres 外鍵違反的錯誤碼（try_on_jobs.user_id → users.id 缺列時觸發）
+const FK_VIOLATION_CODE = "23503";
 
 export const DAILY_GENERATION_LIMIT = 3;
 export const PER_PRODUCT_RETRY_LIMIT = 2;
@@ -108,7 +112,7 @@ export async function recordTryOnJob(input: {
   costEstimate: number;
 }): Promise<TryOnJobCreation> {
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.rpc("insert_try_on_job_within_quota", {
+  const rpcArgs = {
     p_user_id: input.userId,
     p_product_id: input.productId,
     p_person_image_url: input.personImagePath,
@@ -118,7 +122,19 @@ export async function recordTryOnJob(input: {
     p_since: todayStartUtcIso(),
     p_daily_limit: DAILY_GENERATION_LIMIT,
     p_product_attempt_limit: 1 + PER_PRODUCT_RETRY_LIMIT,
-  });
+  };
+  let { data, error } = await supabase.rpc("insert_try_on_job_within_quota", rpcArgs);
+
+  // 自癒路徑：踩到外鍵錯誤，代表 users 列缺失（首次來訪時補列剛好瞬斷、
+  // 或資料庫重建但使用者帶著一年效期的舊 cookie 回來）。cookie 既有效，
+  // getOrCreateUserId 不會再補列，不在這裡自癒的話，這位使用者之後每次
+  // 試穿都會失敗、直到自己清 cookie。補一次 users 列後重試一次插入即可脫困；
+  // 只重試一次，避免真正的資料異常（如 product_id 外鍵失效）變成無限重試。
+  // 額度不受影響：第一次插入根本沒成功，本來就沒扣。
+  if (error?.code === FK_VIOLATION_CODE) {
+    await ensureUserRow(input.userId);
+    ({ data, error } = await supabase.rpc("insert_try_on_job_within_quota", rpcArgs));
+  }
   if (error) throw new Error(`建立試穿任務失敗：${error.message}`);
 
   // 回傳形狀不符（如 migration 002 尚未執行、或函式被改壞）一律 throw，

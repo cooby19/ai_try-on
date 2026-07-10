@@ -34,7 +34,16 @@ export async function getUserId(): Promise<string | null> {
 
 export async function ensureUserRow(userId: string): Promise<void> {
   const supabase = getSupabaseAdmin();
-  await supabase.from("users").upsert({ id: userId }, { onConflict: "id", ignoreDuplicates: true });
+  const { error } = await supabase
+    .from("users")
+    .upsert({ id: userId }, { onConflict: "id", ignoreDuplicates: true });
+  // 失敗不能吞掉：users 列缺失時，try_on_jobs 對 users 的外鍵會讓之後每次
+  // 試穿都失敗，而 cookie 已發出、getOrCreateUserId 看到 cookie 就不再補列，
+  // 使用者會一直卡死直到自己清 cookie。這裡 throw 讓當次請求明確失敗，
+  // 使用者重試時（cookie 已存在）由 recordTryOnJob 的 FK 自癒路徑補列。
+  if (error) {
+    throw new Error("建立使用者資料失敗，請重新整理頁面後再試一次。");
+  }
 }
 
 function isUuid(value: string): boolean {
