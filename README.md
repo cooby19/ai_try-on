@@ -63,6 +63,17 @@ npm run dev
 實作 `src/lib/vto/provider.ts` 的 `VTOProvider` 介面（參考 `fashn.ts`），
 然後在 `src/lib/vto/index.ts` 的 factory 註冊名稱即可。
 
+## 部署
+
+推薦部署到 **Vercel**（本專案的 serverless 架構為此設計）。完整步驟見
+**[docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)**。
+
+建議「分階段、一次點亮一層」上線，壞了才好定位、也不白花 AI 錢：
+
+1. 先用 `VTO_PROVIDER=mock` 上線，驗證 app 能連上 Supabase、上傳/額度/刪除都正常（不花 AI 錢）。
+2. 全綠後只改 `VTO_PROVIDER=fashn` 並填 `FASHN_API_KEY`，重新部署，跑一次真實生成。
+3. 結果圖放大（`ENHANCE_PROVIDER=realesrgan`）非必要，MVP 先維持 `none`。
+
 ## 成本控管規則
 
 | 規則 | 值 | 位置 |
