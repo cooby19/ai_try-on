@@ -6,7 +6,7 @@
 // 設計說明：額度不是存一個計數器欄位，而是直接統計 try_on_jobs 的當日筆數。
 // 這樣「建立 job 紀錄」本身就是 incrementGenerationUsage，不會有計數器與紀錄不同步的問題。
 // 失敗的生成也計入額度（因為已經呼叫過 AI API、產生了成本）。
-import { getSupabaseAdmin } from "./supabase";
+import { getSupabaseAdmin, PERSON_BUCKET } from "./supabase";
 import { ensureUserRow } from "./user";
 import type { JobStatus, TryOnJob } from "./types";
 
@@ -15,6 +15,10 @@ const FK_VIOLATION_CODE = "23503";
 
 export const DAILY_GENERATION_LIMIT = 3;
 export const PER_PRODUCT_RETRY_LIMIT = 2;
+// 每日照片上傳上限：生成額度只管 try_on_jobs，上傳本身不建 job，
+// 若不設限就是額度機制外的成本破口（sharp CPU + 私有 bucket 無限累積，
+// 且目前沒有自動清理）。取 3 次生成 × 換照片重試的合理餘裕。
+export const DAILY_UPLOAD_LIMIT = 10;
 
 // 「每日」以台北時區（UTC+8）為界。
 // export 是為了讓單元測試能直接驗證時區邊界（行為不變，仍僅供本模組與測試使用）。
@@ -43,6 +47,46 @@ function dailyLimitReason(): string {
 
 function productLimitReason(): string {
   return `這件商品今天已重新生成 ${PER_PRODUCT_RETRY_LIMIT} 次，達到上限。可以先試試其他商品，或明天再試。`;
+}
+
+// 上傳額度訊息：與生成額度同一套「告訴使用者下一步」的文案慣例。
+function uploadLimitReason(): string {
+  return `你今天的照片上傳次數（${DAILY_UPLOAD_LIMIT} 次）已用完，明天會自動恢復。已上傳的照片仍可用於試穿。`;
+}
+
+export interface UploadQuotaCheck {
+  allowed: boolean;
+  reason?: string;
+  usedToday: number;
+}
+
+// 上傳額度＝統計 person-uploads 私有 bucket 內該使用者資料夾的「當日」檔案數，
+// 不另建資料表（與生成額度「不設計數器欄位」同一哲學：以既有事實為準）。
+// 刻意不用原子鎖：migration 002 那套是防「花 AI API 錢」的併發競態，
+// 上傳單次成本低，計數有小誤差可接受，輕量防護即可。
+// 注意：list 只取「最新 DAILY_UPLOAD_LIMIT 筆」——判定只需要知道當日筆數
+// 是否達上限：若最新 N 筆全是今天的，代表已達上限；否則過濾後就是精確筆數，
+// 不必翻整個資料夾（使用者累積的舊照片可能很多）。
+export async function checkUploadQuota(userId: string): Promise<UploadQuotaCheck> {
+  const supabase = getSupabaseAdmin();
+  const sinceMs = Date.parse(todayStartUtcIso());
+
+  const { data, error } = await supabase.storage.from(PERSON_BUCKET).list(userId, {
+    limit: DAILY_UPLOAD_LIMIT,
+    sortBy: { column: "created_at", order: "desc" },
+  });
+  // fail-closed：查詢失敗不能默默當成 0 筆放行（與生成額度查詢失敗同一原則）
+  if (error) throw new Error(`上傳額度查詢失敗：${error.message}`);
+
+  // Supabase Storage 的型別允許 created_at 為 null；缺少時間的檔案無法判定為今日上傳，
+  // 不納入今日計數。正常由 upload() 建立的物件都會帶 created_at。
+  const usedToday = (data ?? []).filter(
+    (f) => typeof f.created_at === "string" && Date.parse(f.created_at) >= sinceMs
+  ).length;
+  if (usedToday >= DAILY_UPLOAD_LIMIT) {
+    return { allowed: false, reason: uploadLimitReason(), usedToday };
+  }
+  return { allowed: true, usedToday };
 }
 
 export async function checkGenerationQuota(userId: string, productId: string): Promise<QuotaCheck> {

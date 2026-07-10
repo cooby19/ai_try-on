@@ -6,8 +6,10 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { ensureUserRow } from "@/lib/user";
 import {
   DAILY_GENERATION_LIMIT,
+  DAILY_UPLOAD_LIMIT,
   PER_PRODUCT_RETRY_LIMIT,
   checkGenerationQuota,
+  checkUploadQuota,
   recordTryOnJob,
   todayStartUtcIso,
 } from "@/lib/quota";
@@ -16,6 +18,7 @@ import {
 // mock 掉 client 之後，額度判斷本身是純邏輯，可以完整離線測試。
 vi.mock("@/lib/supabase", () => ({
   getSupabaseAdmin: vi.fn(),
+  PERSON_BUCKET: "person-uploads",
 }));
 
 // recordTryOnJob 的 FK 自癒路徑會呼叫 ensureUserRow；mock 掉以維持完全離線，
@@ -176,6 +179,111 @@ describe("台北時區（UTC+8）每日邊界", () => {
     const { gte } = mockJobsQuery({ data: [], error: null });
     await checkGenerationQuota("user-1", "product-a");
     expect(gte).toHaveBeenCalledWith("created_at", "2026-07-03T16:00:00.000Z");
+  });
+});
+
+// ============================================================
+// checkUploadQuota：上傳額度＝統計 person-uploads 該使用者資料夾的當日檔案數。
+// 這是額度機制外唯一的成本破口防護（sharp CPU + Storage 無限累積），
+// 釘死上限、跨日重置與 fail-closed 行為。
+// ============================================================
+type StorageFile = { name: string; created_at: string };
+
+const storageFile = (i: number, createdAt: string): StorageFile => ({
+  name: `photo-${i}.jpg`,
+  created_at: createdAt,
+});
+
+// 模擬 storage.from(PERSON_BUCKET).list(userId, options) 查詢鏈，
+// 回傳 list mock 以便驗證「只列該使用者資料夾、只取最新上限筆」的 wiring。
+function mockStorageList(result: {
+  data: StorageFile[] | null;
+  error: { message: string } | null;
+}) {
+  const list = vi.fn().mockResolvedValue(result);
+  const from = vi.fn().mockReturnValue({ list });
+  vi.mocked(getSupabaseAdmin).mockReturnValue({
+    storage: { from },
+  } as unknown as ReturnType<typeof getSupabaseAdmin>);
+  return { from, list };
+}
+
+describe("每日上傳額度", () => {
+  it("每日上傳上限 10 次（改這個數字＝改 Storage 成本上界，測試故意寫死以強迫審視）", () => {
+    expect(DAILY_UPLOAD_LIMIT).toBe(10);
+  });
+
+  it("當日 0 筆：允許", async () => {
+    mockStorageList({ data: [], error: null });
+    const result = await checkUploadQuota("user-1");
+    expect(result.allowed).toBe(true);
+    expect(result.usedToday).toBe(0);
+  });
+
+  it("當日已用上限 - 1 筆：仍允許最後一次", async () => {
+    // 邊界前一格：確認不會提早封鎖
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-05T02:30:00Z")); // 台北 07-05 10:30
+    mockStorageList({
+      data: Array.from({ length: DAILY_UPLOAD_LIMIT - 1 }, (_, i) =>
+        storageFile(i, "2026-07-05T01:00:00.000Z")
+      ),
+      error: null,
+    });
+    const result = await checkUploadQuota("user-1");
+    expect(result.allowed).toBe(true);
+    expect(result.usedToday).toBe(DAILY_UPLOAD_LIMIT - 1);
+  });
+
+  it("當日已達上限：拒絕，reason 為可操作的繁中訊息", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-05T02:30:00Z"));
+    mockStorageList({
+      data: Array.from({ length: DAILY_UPLOAD_LIMIT }, (_, i) =>
+        storageFile(i, "2026-07-05T01:00:00.000Z")
+      ),
+      error: null,
+    });
+    const result = await checkUploadQuota("user-1");
+    expect(result.allowed).toBe(false);
+    // 訊息必須告訴使用者「明天會恢復」且「已上傳的照片仍可用」，而不是技術性錯誤
+    expect(result.reason).toContain(`${DAILY_UPLOAD_LIMIT} 次`);
+    expect(result.reason).toContain("明天");
+    expect(result.reason).toContain("仍可用");
+  });
+
+  it("跨日重置：昨天（台北時區）的上傳不計入今天的額度", async () => {
+    // 台北 07-05 00:30（UTC 07-04 16:30）：今天從 07-04T16:00Z 起算，
+    // 之前的檔案即使是「UTC 同一天」也屬於台北的昨天，不得計入
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T16:30:00Z"));
+    mockStorageList({
+      data: [
+        ...Array.from({ length: DAILY_UPLOAD_LIMIT - 1 }, (_, i) =>
+          storageFile(i, "2026-07-04T15:00:00.000Z") // 台北 07-04 23:00 = 昨天
+        ),
+        storageFile(99, "2026-07-04T16:10:00.000Z"), // 台北 07-05 00:10 = 今天
+      ],
+      error: null,
+    });
+    const result = await checkUploadQuota("user-1");
+    expect(result.allowed).toBe(true);
+    expect(result.usedToday).toBe(1);
+  });
+
+  it("只列該使用者資料夾、只取最新上限筆（判定達標與否不需要翻整個資料夾）", async () => {
+    const { from, list } = mockStorageList({ data: [], error: null });
+    await checkUploadQuota("user-1");
+    expect(from).toHaveBeenCalledWith("person-uploads");
+    expect(list).toHaveBeenCalledWith("user-1", {
+      limit: DAILY_UPLOAD_LIMIT,
+      sortBy: { column: "created_at", order: "desc" },
+    });
+  });
+
+  it("Storage 回傳 error 時應 throw，不能默默當成 0 筆放行（fail-closed）", async () => {
+    mockStorageList({ data: null, error: { message: "connection refused" } });
+    await expect(checkUploadQuota("user-1")).rejects.toThrow(/上傳額度查詢失敗/);
   });
 });
 

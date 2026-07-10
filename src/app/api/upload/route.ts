@@ -5,11 +5,19 @@ import { NextResponse } from "next/server";
 import { getOrCreateUserId } from "@/lib/user";
 import { getSupabaseAdmin, PERSON_BUCKET, imageProxyUrl } from "@/lib/supabase";
 import { validateFileMeta, normalizePersonImage } from "@/lib/validation";
+import { checkUploadQuota } from "@/lib/quota";
 import { jsonError, errorMessage } from "@/lib/http";
 
 export async function POST(req: Request) {
   try {
     const userId = await getOrCreateUserId();
+
+    // 每日上傳上限（成本控管）：放在解析 formData 之前，
+    // 超限的請求連檔案都不收進記憶體，更不會白耗 sharp CPU。
+    const uploadQuota = await checkUploadQuota(userId);
+    if (!uploadQuota.allowed) {
+      return jsonError(429, uploadQuota.reason ?? "今天的照片上傳次數已用完，明天會自動恢復。");
+    }
 
     const formData = await req.formData();
     const file = formData.get("file");
