@@ -8,6 +8,7 @@ import { getVTOProvider } from "@/lib/vto";
 import { enhanceResultImage } from "@/lib/enhance";
 import type { VTOSubmitInput } from "@/lib/vto/provider";
 import { loadImageAsPngBuffer } from "@/lib/images";
+import { toJpegUploadBlob } from "@/lib/validation";
 import { jsonError, errorMessage } from "@/lib/http";
 import type { TryOnJob, TryOnJobView } from "@/lib/types";
 
@@ -60,9 +61,12 @@ export async function GET(_req: Request, { params }: RouteParams) {
         // 結果圖存進私有 bucket，前端只拿「走自家網域」的轉發網址（/api/image）
         const resultPath = `${job.user_id}/${job.id}.jpg`;
         const supabase = getSupabaseAdmin();
+        // 與人物照上傳相同：Vercel 上不能直接把 Node Buffer 交給 storage-js，
+        // 否則 JPEG 的非 UTF-8 位元可能在 server fetch 路徑被改寫，造成檔案存在但瀏覽器無法解碼。
+        const uploadBody = toJpegUploadBlob(enhanceOutcome.image);
         const { error: uploadError } = await supabase.storage
           .from(RESULT_BUCKET)
-          .upload(resultPath, enhanceOutcome.image, { contentType: "image/jpeg", upsert: true });
+          .upload(resultPath, uploadBody, { contentType: "image/jpeg", upsert: true });
         if (uploadError) {
           await updateJobStatus(job.id, {
             status: "failed",
