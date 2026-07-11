@@ -2,40 +2,21 @@
 // 第一版不做複雜的電腦視覺判斷（例如偵測是否多人、是否遮擋），
 // 只做格式 / 大小 / 可解碼 / 尺寸檢查，並回傳「可操作」的錯誤訊息。
 import sharp from "sharp";
+import { TARGET_MAX_WIDTH } from "./upload-constraints";
 
-export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
-export const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB
+export {
+  ALLOWED_MIME_TYPES,
+  MAX_FILE_SIZE_BYTES,
+  TARGET_MAX_WIDTH,
+  validateFileMeta,
+} from "./upload-constraints";
+export type { ValidationResult } from "./upload-constraints";
 export const MIN_IMAGE_WIDTH = 320; // 太小的圖生成品質會很差
 // 上傳壓縮是整條品質管線的第一關：FASHN tryon-v1.6 的輸出不會超過輸入解析度
 // （上限 864×1296），舊值 1024（規格書建議 768~1024px）在非 3:4 比例的照片上
 // 高度常低於 1296，會逼 v1.6 降解析度輸出。1440 讓 3:4 直幅照高約 1920，
 // 穩定覆蓋 1296 並留裁切餘裕；FASHN 官方前處理指南建議 1K 端點最長邊 ≤2000px，
 // 1920 在範圍內（https://docs.fashn.ai/guides/image-preprocessing-best-practices）。
-export const TARGET_MAX_WIDTH = 1440;
-
-export type ValidationResult =
-  | { ok: true }
-  | { ok: false; message: string };
-
-export function validateFileMeta(file: { type: string; size: number }): ValidationResult {
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-    return {
-      ok: false,
-      message: "目前只支援 JPG、PNG 或 WebP 圖片。請把照片另存成這幾種格式後再上傳一次。",
-    };
-  }
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    return {
-      ok: false,
-      message: "照片超過 8MB。請換一張較小的照片，或先把照片稍微縮小（寬度 1440px 以內即可）再上傳。",
-    };
-  }
-  if (file.size === 0) {
-    return { ok: false, message: "上傳的檔案是空的，請重新選擇一張照片。" };
-  }
-  return { ok: true };
-}
-
 // 確認圖片真的可以解碼，並統一轉成寬度最多 TARGET_MAX_WIDTH 的 JPEG。
 // 回傳處理後的 buffer；失敗時回傳可操作的錯誤訊息。
 export async function normalizePersonImage(

@@ -4,12 +4,24 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUserId } from "@/lib/user";
 import { getSupabaseAdmin, PERSON_BUCKET, imageProxyUrl } from "@/lib/supabase";
-import { validateFileMeta, normalizePersonImage, toJpegUploadBlob } from "@/lib/validation";
+import {
+  MAX_FILE_SIZE_BYTES,
+  validateFileMeta,
+  normalizePersonImage,
+  toJpegUploadBlob,
+} from "@/lib/validation";
 import { checkUploadQuota } from "@/lib/quota";
 import { jsonError, errorMessage } from "@/lib/http";
 
 export async function POST(req: Request) {
   try {
+    // 正常的 4 MiB 檔案加上 multipart 邊界只會多出少量 bytes。
+    // 若 Content-Length 明顯更大，先以既有 JSON 錯誤格式拒絕，避免進入 formData()。
+    const contentLength = Number(req.headers.get("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > MAX_FILE_SIZE_BYTES + 64 * 1024) {
+      return jsonError(413, "照片超過 4MB。圖片不得超過 4MB，請縮小後再上傳。");
+    }
+
     const userId = await getOrCreateUserId();
 
     // 每日上傳上限（成本控管）：放在解析 formData 之前，

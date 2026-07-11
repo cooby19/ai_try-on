@@ -1,5 +1,5 @@
 // validation.ts 的回歸保護：上傳檢查是唯一擋在「使用者檔案 → 花錢的 AI API」
-// 之間的關卡，這裡釘死格式白名單、8MB 與 320px 的邊界，以及錯誤訊息必須可操作。
+// 之間的關卡，這裡釘死格式白名單、4MB 與 320px 的邊界，以及錯誤訊息必須可操作。
 // normalizePersonImage 直接用真的 sharp 動態產圖（專案本來就依賴 sharp），
 // 不 mock 影像處理，測到的才是真實的解碼／縮圖行為。
 import sharp from "sharp";
@@ -48,17 +48,17 @@ describe("validateFileMeta：格式白名單", () => {
 });
 
 describe("validateFileMeta：大小邊界", () => {
-  it("剛好 8MB 應通過（上限是「超過」才拒絕）", () => {
+  it("剛好 4MB 應通過（上限是「超過」才拒絕）", () => {
     expect(
       validateFileMeta({ type: "image/jpeg", size: MAX_FILE_SIZE_BYTES })
     ).toEqual({ ok: true });
   });
 
-  it("8MB + 1 byte 拒絕，訊息附與 TARGET_MAX_WIDTH 一致的建議寬度", () => {
+  it("4MB + 1 byte 拒絕，訊息附與 TARGET_MAX_WIDTH 一致的建議寬度", () => {
     const result = validateFileMeta({ type: "image/jpeg", size: MAX_FILE_SIZE_BYTES + 1 });
     expect(result).toMatchObject({
       ok: false,
-      message: expect.stringContaining("8MB"),
+      message: expect.stringContaining("4MB"),
     });
     // 釘住文案裡的建議寬度：它必須跟著 TARGET_MAX_WIDTH 走，
     // 否則文案（叫使用者縮到某寬度）會與實際壓縮行為漂移、自相矛盾

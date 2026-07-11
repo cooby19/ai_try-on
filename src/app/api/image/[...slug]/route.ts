@@ -11,6 +11,7 @@
 // 無權限而破圖；憑證放在網址上就沒有這個問題。
 import { getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET, verifyImageSignature } from "@/lib/supabase";
 import { jsonError, errorMessage } from "@/lib/http";
+import { fitImageToResponseLimit, MAX_IMAGE_RESPONSE_BYTES } from "@/lib/image-payload";
 
 type RouteParams = { params: Promise<{ slug: string[] }> };
 
@@ -43,9 +44,20 @@ export async function GET(req: Request, { params }: RouteParams) {
     const { data, error } = await supabase.storage.from(bucket).download(storagePath);
     if (error || !data) return jsonError(404, "找不到圖片。");
 
-    // 直接串流 Supabase 回傳的 Blob，避免 NextResponse(Uint8Array) 在 Vercel 上經過
-    // 文字編碼路徑，把 JPEG 的 0xff 等位元改寫成 UTF-8 replacement character（ef bf bd）。
-    // 不手動設定 Content-Length，交由串流回應處理，亦避免完整圖片先進入 function buffer。
+    // 安全大小內維持原本串流路徑，避免二進位被文字轉碼，也不增加正常圖片的 sharp 成本。
+    // 串流不會繞過 Vercel 的 4.5 MB response 上限，因此超過 4 MiB 時必須先壓縮／縮圖。
+    if (data.size > MAX_IMAGE_RESPONSE_BYTES) {
+      const safe = await fitImageToResponseLimit(Buffer.from(await data.arrayBuffer()));
+      return new Response(Uint8Array.from(safe.buffer), {
+        status: 200,
+        headers: {
+          "Content-Type": safe.contentType,
+          "Content-Length": String(safe.buffer.length),
+          "Cache-Control": "private, max-age=3600",
+        },
+      });
+    }
+
     return new Response(data.stream(), {
       status: 200,
       headers: {

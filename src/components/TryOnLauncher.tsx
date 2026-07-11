@@ -4,6 +4,7 @@
 // 前端只呼叫自家後端 API，完全接觸不到 AI API key。
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Product, TryOnJobView, TryOnModel } from "@/lib/types";
+import { validateFileMeta } from "@/lib/upload-constraints";
 import TryOnResult from "./TryOnResult";
 
 const POLL_INTERVAL_MS = 2000;
@@ -62,6 +63,11 @@ export default function TryOnLauncher({ product }: { product: Product }) {
 
   async function handleUpload(file: File) {
     setError(null);
+    const metaCheck = validateFileMeta({ type: file.type, size: file.size });
+    if (!metaCheck.ok) {
+      setError(metaCheck.message);
+      return;
+    }
     setUploading(true);
     try {
       const formData = new FormData();
@@ -356,7 +362,7 @@ function UploadStep({
           <li>上衣區域清楚可見，手自然放下、不要抱胸</li>
           <li>避免包包、手機擋住身體</li>
           <li>光線充足、不要太暗或太模糊</li>
-          <li>支援 JPG / PNG / WebP，8MB 以內（建議寬度 1080～1440px）</li>
+          <li>支援 JPG / PNG / WebP，圖片不得超過 4MB（建議寬度 1080～1440px）</li>
         </ul>
         <p className="mt-3 text-xs text-stone-500">
           拍攝建議：明亮均勻的光線、正面站姿、雙手自然放下、背景乾淨、身上穿著合身上衣。
