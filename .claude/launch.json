@@ -2,16 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "dev",
+      "name": "AI 試穿（FASHN API）",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
     },
     {
-      "name": "dev-mock",
+      "name": "流程展示（Mock，非 AI）",
       "runtimeExecutable": "env",
       "runtimeArgs": ["VTO_PROVIDER=mock", "npm", "run", "dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

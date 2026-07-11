@@ -7,7 +7,7 @@
 - **前端／後端**：Next.js 16（App Router、TypeScript、Tailwind CSS）
 - **資料庫／圖片儲存**：Supabase（Postgres + 私有 Storage bucket，前端只拿短期 signed URL）
 - **AI 生成**：可替換的 VTO provider 抽象層
-  - `mock`（預設）：不需 API key，約 3 秒回傳示範合成圖，可跑通完整流程
+  - `mock`（須明確啟用）：不需 API key，約 3 秒回傳示範合成圖，可跑通完整流程
   - `fashn`：真實的 [FASHN Virtual Try-On API](https://fashn.ai)
 - **使用者識別**：匿名 cookie（`vto_uid`），不需註冊登入
 
@@ -38,7 +38,7 @@ cp .env.local.example .env.local
 |---|---|
 | `SUPABASE_URL` | 專案 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role key（**只在後端使用，不會進前端 bundle**） |
-| `VTO_PROVIDER` | `mock`（預設）或 `fashn` |
+| `VTO_PROVIDER` | `fashn`（預設）、`fashn-max` 或僅供流程展示的 `mock` |
 | `FASHN_API_KEY` | 只有用 `fashn` 時需要 |
 
 ### 4. 啟動

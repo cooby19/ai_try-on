@@ -305,12 +305,12 @@ function ModelSelector({
   onChange: (model: TryOnModel) => void;
 }) {
   const options: { key: TryOnModel; label: string; hint: string }[] = [
-    { key: "v1.6", label: "標準", hint: "速度較快，日常預覽適用" },
+    { key: "v1.6", label: "一般", hint: "速度較快，日常預覽適用" },
     { key: "max", label: "高品質", hint: "細節更好，生成時間較長" },
   ];
   return (
     <fieldset>
-      <legend className="mb-1.5 text-xs text-stone-500">生成模型</legend>
+      <legend className="mb-1.5 text-xs text-stone-500">生成品質</legend>
       <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => (
           <label

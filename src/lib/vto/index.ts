@@ -14,8 +14,12 @@ const providers: Record<string, () => VTOProvider> = {
   "fashn-max": () => new FashnMaxVTOProvider(),
 };
 
+// 真實 API 是產品的安全預設。Mock 只在明確設定 VTO_PROVIDER=mock 時啟用，
+// 避免環境變數漏設時仍回傳一張看似成功、實際上沒有經過 AI 的示範圖。
+const DEFAULT_PROVIDER = "fashn";
+
 export function getVTOProvider(name?: string): VTOProvider {
-  const key = (name ?? process.env.VTO_PROVIDER ?? "mock").toLowerCase();
+  const key = (name ?? process.env.VTO_PROVIDER ?? DEFAULT_PROVIDER).toLowerCase();
   const factory = providers[key];
   if (!factory) {
     throw new Error(`未知的 VTO provider：「${key}」。可用選項：${Object.keys(providers).join(", ")}`);
@@ -34,7 +38,7 @@ const USER_MODEL_TO_PROVIDER: Record<TryOnModel, string> = {
 // 環境變數 provider 的預設模型（給前端初始化選擇器用）。
 // 回傳 null 代表目前環境不開放選模型（mock 或未知 provider），前端據此隱藏選擇器。
 export function getDefaultUserModel(): TryOnModel | null {
-  const base = (process.env.VTO_PROVIDER ?? "mock").toLowerCase();
+  const base = (process.env.VTO_PROVIDER ?? DEFAULT_PROVIDER).toLowerCase();
   const entry = (Object.entries(USER_MODEL_TO_PROVIDER) as [TryOnModel, string][]).find(
     ([, providerName]) => providerName === base,
   );
@@ -47,7 +51,7 @@ export function getDefaultUserModel(): TryOnModel | null {
 // - 未傳 model：沿用環境變數 provider（與加入此功能前的行為完全一致，可回滾）。
 // - 傳了但不在白名單（含非字串）：回 null，由 route 轉成 400 可操作訊息。
 export function resolveVTOProviderName(model?: unknown): string | null {
-  const base = (process.env.VTO_PROVIDER ?? "mock").toLowerCase();
+  const base = (process.env.VTO_PROVIDER ?? DEFAULT_PROVIDER).toLowerCase();
   if (getDefaultUserModel() === null) return base;
   if (model === undefined) return base;
   if (typeof model !== "string") return null;

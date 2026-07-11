@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("VTO_PROVIDER=mock（本機無 API key 的預設環境）", () => {
+describe("VTO_PROVIDER=mock（必須明確啟用的流程展示環境）", () => {
   it("忽略前端選擇，一律回 mock——避免沒有 key 的環境誤打真實 API", () => {
     vi.stubEnv("VTO_PROVIDER", "mock");
     expect(resolveVTOProviderName(undefined)).toBe("mock");
@@ -24,10 +24,11 @@ describe("VTO_PROVIDER=mock（本機無 API key 的預設環境）", () => {
     expect(getDefaultUserModel()).toBeNull();
   });
 
-  it("未設定 VTO_PROVIDER 時視同 mock（與 getVTOProvider 的預設一致）", () => {
+  it("未設定 VTO_PROVIDER 時使用真實 fashn，不能悄悄產生 mock 結果", () => {
     vi.stubEnv("VTO_PROVIDER", undefined as unknown as string); // 模擬變數不存在
-    expect(resolveVTOProviderName("max")).toBe("mock");
-    expect(getDefaultUserModel()).toBeNull();
+    expect(resolveVTOProviderName(undefined)).toBe("fashn");
+    expect(resolveVTOProviderName("max")).toBe("fashn-max");
+    expect(getDefaultUserModel()).toBe("v1.6");
   });
 });
 
