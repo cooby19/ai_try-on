@@ -38,7 +38,7 @@ export interface TryOnJob {
   updated_at: string;
 }
 
-// API 回傳給前端的 job 狀態（圖片一律換成「走自家網域」的轉發網址 /api/image，非 Storage 路徑）
+// API 回傳給前端的 job 狀態（圖片換成私有 Storage 的 1 小時 signed URL，非永久公開 URL）
 export interface TryOnJobView {
   jobId: string;
   status: JobStatus;

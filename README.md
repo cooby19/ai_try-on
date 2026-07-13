@@ -25,6 +25,7 @@ npm install
 2. 進 **SQL Editor**，依序貼上並執行 `supabase/migrations/` 下的 SQL 檔：
    - `001_init.sql`（4 張資料表、2 個私有 storage bucket、3 件種子商品）
    - `002_atomic_quota_insert.sql`（額度檢查＋插入的原子函式；未執行的話「開始 AI 試穿」會直接失敗）
+   - `003_direct_upload_constraints.sql`（人物照直傳的 8MiB／MIME bucket 限制；既有專案必跑）
 
 ### 3. 設定環境變數
 
@@ -88,7 +89,8 @@ npm run dev
 
 | Method | Path | 說明 |
 |---|---|---|
-| POST | `/api/upload` | 上傳人物照（驗證 → 壓縮 → 私有 bucket） |
+| POST | `/api/upload` | 申請直傳授權／完成 Storage 圖片驗證與正規化（只收 JSON） |
+| GET | `/api/upload?path=` | 刷新本人照片的短效 signed display URL |
 | POST | `/api/try-on` | 建立試穿任務（額度檢查 → 呼叫 provider） |
 | GET | `/api/try-on/[jobId]` | 輪詢任務狀態 |
 | DELETE | `/api/try-on/[jobId]` | 刪除試穿紀錄與照片（隱私） |
@@ -98,6 +100,8 @@ npm run dev
 ## 隱私設計
 
 - 人物照與結果圖存放在**私有** bucket，前端只拿 1 小時有效的 signed URL
+- 原始人物照以綁定隨機 `.upload` path 的 Supabase signed URL 直傳；後端以 10 分鐘 HMAC 完成憑證核對使用者、path、MIME 與 bytes，驗證成功後才建立正式 `.jpg`
+- Supabase signed upload URL 官方固定約 2 小時且不能自訂 TTL；以 `upsert=false`、不可猜 path、8MiB/MIME bucket 限制、完成後的 1-byte path lock 與「正式 `.jpg` 才能進 AI」降低風險
 - 使用者可在結果頁刪除自己的試穿照片：**照片檔案立即刪除、圖片欄位清空**，但 job 列保留——否則使用者可以靠「生成 → 刪除」重複刷每日額度，成本指標也會失真
 - 照片只用於 AI 試穿；未經同意不用於模型訓練
 - API key 只存在後端環境變數（已驗證不會出現在前端 bundle）
@@ -109,7 +113,7 @@ npm run dev
 2. 按「滿意 / 不滿意」→ Supabase `try_on_feedback` 表會多一筆
 3. 同一商品連續生成 3 次 → 第 4 次會被「此商品重試上限」擋下
 4. 換不同商品湊滿當日 3 次 → 再生成會被「每日上限」擋下
-5. 上傳 txt 或超過 4MB 的檔案 → 會在送出前得到可操作的錯誤訊息
+5. 約 4MB、8MB 圖片可直傳；txt 或超過 8MB 的檔案會在送出前得到可操作的錯誤訊息
 
 ## 專案結構
 
@@ -127,7 +131,7 @@ src/
 │   ├── page.tsx        # 商品列表
 │   └── products/[id]/  # 商品頁
 └── components/         # TryOnLauncher（modal）/ TryOnResult / AddToCartButton
-supabase/migrations/               # 001 資料表 + bucket + 種子資料；002 原子額度插入函式
+supabase/migrations/               # 001 初始化；002 原子額度；003 直傳 bucket 限制
 ```
 
 ## 未來擴充（刻意不在第一版做）

@@ -93,8 +93,11 @@ alter default privileges in schema public grant all privileges on tables to serv
 -- Storage buckets：人物照與結果圖都放「私有」bucket，
 -- 前端只透過後端簽發的短期 signed URL 存取（隱私需求）。
 -- ============================================================
-insert into storage.buckets (id, name, public)
-values ('person-uploads', 'person-uploads', false)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'person-uploads', 'person-uploads', false, 8388608,
+  array['image/jpeg', 'image/png', 'image/webp']::text[]
+)
 on conflict (id) do nothing;
 
 insert into storage.buckets (id, name, public)

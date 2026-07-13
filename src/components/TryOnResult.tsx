@@ -13,6 +13,7 @@ export default function TryOnResult({
   onRegenerate,
   onChangePhoto,
   onDeleted,
+  onImageError,
   modelSelector,
 }: {
   job: TryOnJobView;
@@ -24,6 +25,8 @@ export default function TryOnResult({
   // 與「刪除這次試穿的照片」（onDeleted，會真的 DELETE 檔案）語意刻意區分開
   onChangePhoto: () => void;
   onDeleted: () => void;
+  // Storage signed URL 過期或失效時，向後端取得同一 job 的新短效 URL。
+  onImageError: () => void;
   // 生成模型選擇器（選填）：狀態由 TryOnLauncher 持有，這裡只負責擺在「重新生成」附近，
   // 讓使用者重按前可以改選模型；mock 模式不會傳入
   modelSelector?: ReactNode;
@@ -84,6 +87,7 @@ export default function TryOnResult({
           <img
             src={personPreview}
             alt="原始照片"
+            onError={onImageError}
             className="w-full rounded-lg border border-stone-200 object-cover"
           />
           <figcaption className="mt-1 text-xs text-stone-500 text-center">原始照片</figcaption>
@@ -94,6 +98,7 @@ export default function TryOnResult({
             <img
               src={job.resultImageUrl}
               alt="AI 試穿結果"
+              onError={onImageError}
               className="w-full rounded-lg border-2 border-stone-800 object-cover"
             />
           )}

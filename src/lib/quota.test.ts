@@ -277,6 +277,7 @@ describe("每日上傳額度", () => {
     expect(from).toHaveBeenCalledWith("person-uploads");
     expect(list).toHaveBeenCalledWith("user-1", {
       limit: DAILY_UPLOAD_LIMIT,
+      search: ".jpg",
       sortBy: { column: "created_at", order: "desc" },
     });
   });
