@@ -48,7 +48,8 @@ describe("validateFileMeta：格式白名單", () => {
 });
 
 describe("validateFileMeta：大小邊界", () => {
-  it("剛好 8MB 應通過（上限是「超過」才拒絕）", () => {
+  it("約 4MB 與剛好 8MB 都應通過", () => {
+    expect(validateFileMeta({ type: "image/jpeg", size: 4 * 1024 * 1024 })).toEqual({ ok: true });
     expect(
       validateFileMeta({ type: "image/jpeg", size: MAX_FILE_SIZE_BYTES })
     ).toEqual({ ok: true });
@@ -70,6 +71,12 @@ describe("validateFileMeta：大小邊界", () => {
       ok: false,
       message: expect.stringContaining("重新選擇"),
     });
+  });
+
+  it("非整數、負數或 NaN 的偽造 metadata 拒絕", () => {
+    for (const size of [-1, 1.5, Number.NaN]) {
+      expect(validateFileMeta({ type: "image/png", size }).ok).toBe(false);
+    }
   });
 });
 

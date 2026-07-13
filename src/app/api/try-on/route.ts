@@ -13,6 +13,7 @@ import {
 import { getVTOProvider, resolveVTOProviderName } from "@/lib/vto";
 import { loadImageAsPngBuffer } from "@/lib/images";
 import { jsonError, errorMessage } from "@/lib/http";
+import { isOwnedPersonImagePath } from "@/lib/upload-intent";
 import type { Product } from "@/lib/types";
 
 export async function POST(req: Request) {
@@ -34,8 +35,8 @@ export async function POST(req: Request) {
     if (!providerName) {
       return jsonError(400, "不支援的生成模型，請重新整理頁面後再選擇一次。");
     }
-    // 人物照路徑必須屬於目前使用者，防止拿別人的照片生成
-    if (!body.personImagePath.startsWith(`${userId}/`)) {
+    // 只接受完成直傳驗證後的本人正式 JPEG；.upload 臨時檔、巢狀／跳脫路徑與他人照片都拒絕。
+    if (!isOwnedPersonImagePath(userId, body.personImagePath)) {
       return jsonError(403, "照片來源驗證失敗，請重新上傳照片。");
     }
 

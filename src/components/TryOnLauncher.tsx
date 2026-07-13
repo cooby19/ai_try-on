@@ -4,6 +4,8 @@
 // 前端只呼叫自家後端 API，完全接觸不到 AI API key。
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Product, TryOnJobView, TryOnModel } from "@/lib/types";
+import { validateFileMeta } from "@/lib/upload-constraints";
+import { uploadFileToSignedUrl } from "@/lib/direct-upload";
 import TryOnResult from "./TryOnResult";
 
 const POLL_INTERVAL_MS = 2000;
@@ -30,6 +32,7 @@ export default function TryOnLauncher({ product }: { product: Product }) {
   const [quota, setQuota] = useState<Quota | null>(null);
   const [model, setModel] = useState<TryOnModel | null>(null);
   const pollAbort = useRef<{ stop: boolean }>({ stop: false });
+  const lastImageRefreshAt = useRef(0);
 
   const refreshQuota = useCallback(async () => {
     try {
@@ -62,23 +65,74 @@ export default function TryOnLauncher({ product }: { product: Product }) {
 
   async function handleUpload(file: File) {
     setError(null);
+    const metaCheck = validateFileMeta({ type: file.type, size: file.size });
+    if (!metaCheck.ok) {
+      setError(metaCheck.message);
+      return;
+    }
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.message ?? "照片上傳失敗，請再試一次。");
+      // 1. Vercel 只接收 metadata JSON，回傳綁定隨機 path 的 Supabase signed upload URL。
+      const prepareRes = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare", mimeType: file.type, size: file.size }),
+      });
+      const prepared = await prepareRes.json();
+      if (!prepareRes.ok) {
+        setError(prepared.message ?? "建立照片上傳授權失敗，請再試一次。");
         return;
       }
-      setPersonPath(data.path);
-      setPersonPreview(data.previewUrl);
+
+      // 2. 原始大圖由瀏覽器直接送到 Supabase，不經過 Vercel Function request body。
+      await uploadFileToSignedUrl(prepared.signedUrl, file);
+
+      // 3. Vercel 只接收 path + 短效完成憑證，再從 Storage 驗證、縮圖並存成正式 JPEG。
+      const completeRes = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "complete",
+          path: prepared.path,
+          completionToken: prepared.completionToken,
+        }),
+      });
+      const completed = await completeRes.json();
+      if (!completeRes.ok) {
+        setError(completed.message ?? "照片驗證失敗，請重新選擇照片。");
+        return;
+      }
+      setPersonPath(completed.path);
+      setPersonPreview(completed.previewUrl);
       setStep("ready");
-    } catch {
-      setError("網路連線異常，請確認網路後再試一次。");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "網路連線異常，請確認網路後再試一次。");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function refreshPersonPreview() {
+    if (!personPath || Date.now() - lastImageRefreshAt.current < 5000) return;
+    lastImageRefreshAt.current = Date.now();
+    try {
+      const res = await fetch(`/api/upload?path=${encodeURIComponent(personPath)}`);
+      const data = await res.json();
+      if (res.ok && data.signedUrl) setPersonPreview(data.signedUrl);
+    } catch {
+      /* signed URL 刷新失敗時保留原畫面，避免 onError 無限重試 */
+    }
+  }
+
+  async function refreshJobImages() {
+    if (!job || Date.now() - lastImageRefreshAt.current < 5000) return;
+    lastImageRefreshAt.current = Date.now();
+    try {
+      const res = await fetch(`/api/try-on/${job.jobId}`);
+      const data = (await res.json()) as TryOnJobView;
+      if (res.ok) setJob(data);
+    } catch {
+      /* 同上：圖片刷新是非阻塞 fallback */
     }
   }
 
@@ -224,6 +278,7 @@ export default function TryOnLauncher({ product }: { product: Product }) {
                     <img
                       src={personPreview}
                       alt="你的照片"
+                      onError={refreshPersonPreview}
                       className="w-full rounded-lg border border-stone-200 object-cover"
                     />
                     <figcaption className="mt-1 text-xs text-stone-500 text-center">你的照片</figcaption>
@@ -280,6 +335,7 @@ export default function TryOnLauncher({ product }: { product: Product }) {
                 onRegenerate={handleRegenerate}
                 onChangePhoto={resetToUpload}
                 onDeleted={resetToUpload}
+                onImageError={refreshJobImages}
                 // 結果頁也放選擇器：重新生成沿用上次選擇，但允許先改選再按「重新生成」
                 modelSelector={
                   quota?.defaultModel && model ? (
@@ -356,7 +412,7 @@ function UploadStep({
           <li>上衣區域清楚可見，手自然放下、不要抱胸</li>
           <li>避免包包、手機擋住身體</li>
           <li>光線充足、不要太暗或太模糊</li>
-          <li>支援 JPG / PNG / WebP，8MB 以內（建議寬度 1080～1440px）</li>
+          <li>支援 JPG / PNG / WebP，圖片不得超過 8MB（建議寬度 1080～1440px）</li>
         </ul>
         <p className="mt-3 text-xs text-stone-500">
           拍攝建議：明亮均勻的光線、正面站姿、雙手自然放下、背景乾淨、身上穿著合身上衣。

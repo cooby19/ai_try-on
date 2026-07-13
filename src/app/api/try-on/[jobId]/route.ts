@@ -2,7 +2,7 @@
 // DELETE /api/try-on/[jobId] — 刪除試穿紀錄與相關照片（隱私需求：使用者可刪除自己的紀錄）
 import { NextResponse } from "next/server";
 import { getUserId } from "@/lib/user";
-import { getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET, imageProxyUrl } from "@/lib/supabase";
+import { createSignedUrl, getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET } from "@/lib/supabase";
 import { updateJobStatus } from "@/lib/quota";
 import { getVTOProvider } from "@/lib/vto";
 import { enhanceResultImage } from "@/lib/enhance";
@@ -10,6 +10,7 @@ import type { VTOSubmitInput } from "@/lib/vto/provider";
 import { loadImageAsPngBuffer } from "@/lib/images";
 import { toJpegUploadBlob } from "@/lib/validation";
 import { jsonError, errorMessage } from "@/lib/http";
+import { rawUploadPathForPersonImage } from "@/lib/upload-intent";
 import type { TryOnJob, TryOnJobView } from "@/lib/types";
 
 type RouteParams = { params: Promise<{ jobId: string }> };
@@ -58,7 +59,7 @@ export async function GET(_req: Request, { params }: RouteParams) {
         // mock / fashn-max 直接跳過）。放大失敗會在 enhance 層降級回原圖，
         // 這裡拿到的 image 永遠可用，job 照常標 success。
         const enhanceOutcome = await enhanceResultImage(result.resultImage, job.provider);
-        // 結果圖存進私有 bucket，前端只拿「走自家網域」的轉發網址（/api/image）
+        // 結果圖存進私有 bucket，前端之後只拿 Supabase 的短效 signed URL。
         const resultPath = `${job.user_id}/${job.id}.jpg`;
         const supabase = getSupabaseAdmin();
         // 與人物照上傳相同：Vercel 上不能直接把 Node Buffer 交給 storage-js，
@@ -99,17 +100,17 @@ export async function GET(_req: Request, { params }: RouteParams) {
       // processing → 維持原狀，前端稍後再輪詢
     }
 
+    // 私有圖片由 Supabase Storage/CDN 直接傳給瀏覽器，不再經過 Vercel response payload。
+    // 每次輪詢都重新簽 1 小時 URL；前端圖片 onError 也會重查本端點取得新 URL。
+    const [personImageUrl, resultImageUrl] = await Promise.all([
+      job.person_image_url ? createSignedUrl(PERSON_BUCKET, job.person_image_url) : null,
+      job.result_image_url ? createSignedUrl(RESULT_BUCKET, job.result_image_url) : null,
+    ]);
     const view: TryOnJobView = {
       jobId: job.id,
       status: job.status,
-      // 圖片走自家網域轉發（/api/image），避免部分網路封鎖 supabase.co 導致破圖。
-      // person_image_url 被刪除後會是空字串，此時回 null。
-      personImageUrl: job.person_image_url
-        ? imageProxyUrl(PERSON_BUCKET, job.person_image_url)
-        : null,
-      resultImageUrl: job.result_image_url
-        ? imageProxyUrl(RESULT_BUCKET, job.result_image_url)
-        : null,
+      personImageUrl,
+      resultImageUrl,
       costEstimate: Number(job.cost_estimate),
       retryCount: job.retry_count,
       ...(job.error_message ? { message: job.error_message } : {}),
@@ -141,6 +142,8 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
         .neq("id", job.id);
       if (!count) {
         await supabase.storage.from(PERSON_BUCKET).remove([job.person_image_url]);
+        const rawLockPath = rawUploadPathForPersonImage(job.person_image_url);
+        if (rawLockPath) await supabase.storage.from(PERSON_BUCKET).remove([rawLockPath]);
       }
     }
     // 隱私 vs 成本控管的取捨：照片實體檔案全部刪除、圖片欄位清空（隱私），

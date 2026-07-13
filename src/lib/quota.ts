@@ -60,7 +60,7 @@ export interface UploadQuotaCheck {
   usedToday: number;
 }
 
-// 上傳額度＝統計 person-uploads 私有 bucket 內該使用者資料夾的「當日」檔案數，
+// 上傳額度＝統計 person-uploads 私有 bucket 內該使用者資料夾的「當日正式 JPEG」數，
 // 不另建資料表（與生成額度「不設計數器欄位」同一哲學：以既有事實為準）。
 // 刻意不用原子鎖：migration 002 那套是防「花 AI API 錢」的併發競態，
 // 上傳單次成本低，計數有小誤差可接受，輕量防護即可。
@@ -73,6 +73,8 @@ export async function checkUploadQuota(userId: string): Promise<UploadQuotaCheck
 
   const { data, error } = await supabase.storage.from(PERSON_BUCKET).list(userId, {
     limit: DAILY_UPLOAD_LIMIT,
+    // 直傳流程的 .upload 臨時檔不算完成上傳，也不能擠掉列表中的正式照片。
+    search: ".jpg",
     sortBy: { column: "created_at", order: "desc" },
   });
   // fail-closed：查詢失敗不能默默當成 0 筆放行（與生成額度查詢失敗同一原則）
@@ -81,7 +83,7 @@ export async function checkUploadQuota(userId: string): Promise<UploadQuotaCheck
   // Supabase Storage 的型別允許 created_at 為 null；缺少時間的檔案無法判定為今日上傳，
   // 不納入今日計數。正常由 upload() 建立的物件都會帶 created_at。
   const usedToday = (data ?? []).filter(
-    (f) => typeof f.created_at === "string" && Date.parse(f.created_at) >= sinceMs
+    (f) => f.name.endsWith(".jpg") && typeof f.created_at === "string" && Date.parse(f.created_at) >= sinceMs
   ).length;
   if (usedToday >= DAILY_UPLOAD_LIMIT) {
     return { allowed: false, reason: uploadLimitReason(), usedToday };
