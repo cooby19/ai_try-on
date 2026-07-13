@@ -3,11 +3,15 @@
 // 絕對不可以在任何 "use client" 元件中使用，否則金鑰會被打包進前端。
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "crypto";
+import "server-only";
 
 let cached: SupabaseClient | null = null;
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(
+    (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 }
 
 export function getSupabaseAdmin(): SupabaseClient {
@@ -17,9 +21,13 @@ export function getSupabaseAdmin(): SupabaseClient {
     );
   }
   if (!cached) {
-    cached = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: { persistSession: false },
-    });
+    cached = createClient(
+      (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: { persistSession: false },
+      }
+    );
   }
   return cached;
 }

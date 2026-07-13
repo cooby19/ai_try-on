@@ -24,7 +24,7 @@ export interface Product {
 export interface TryOnJob {
   id: string;
   user_id: string;
-  source_hash: string | null;
+  source_hash: string | null; // 舊匿名測試資料欄位；正式會員流程不再讀寫
   product_id: string;
   person_image_url: string; // Storage 路徑，不是公開 URL
   garment_image_url: string;

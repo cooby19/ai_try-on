@@ -300,7 +300,7 @@ describe("查詢失敗", () => {
 // ============================================================
 type RpcResult = {
   allowed: boolean;
-  reject_reason?: "daily" | "product" | "source" | "platform";
+  reject_reason?: "daily" | "product" | "platform";
   used_today: number;
   product_attempts_today: number;
   job?: Record<string, unknown>;
@@ -318,7 +318,6 @@ function mockRpc(result: { data: RpcResult | null; error: { message: string } | 
 
 const recordInput = {
   userId: "user-1",
-  sourceHash: "a".repeat(64),
   productId: "p-a",
   personImagePath: "user-1/photo.jpg",
   garmentImageUrl: "/garments/white-tee.svg",
@@ -340,7 +339,6 @@ describe("原子插入：參數 wiring", () => {
       "insert_try_on_job_within_quota",
       expect.objectContaining({
         p_user_id: "user-1",
-        p_source_hash: "a".repeat(64),
         p_product_id: "p-a",
         p_budget_reservation: 0.0775,
         p_since: "2026-07-03T16:00:00.000Z",
@@ -390,18 +388,6 @@ describe("原子插入：勝出與拒絕", () => {
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain(`${PER_PRODUCT_RETRY_LIMIT} 次`);
     expect(result.reason).toContain("其他商品");
-  });
-
-  it("清 cookie 另建身分仍撞到來源上限：拒絕且不回 job", async () => {
-    mockRpc({
-      data: { allowed: false, reject_reason: "source", used_today: 0, product_attempts_today: 0 },
-      error: null,
-    });
-    const result = await recordTryOnJob(recordInput);
-    expect(result.allowed).toBe(false);
-    expect(result.job).toBeUndefined();
-    expect(result.reason).toContain("此網路");
-    expect(result.reason).toContain("明天");
   });
 
   it("平台預算熔斷：拒絕且不建立可計費 job", async () => {

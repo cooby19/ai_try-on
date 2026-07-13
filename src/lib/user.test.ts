@@ -1,108 +1,45 @@
-// 匿名 session 的安全邊界：cookie 只能放高熵 token、DB 只查 token 雜湊，
-// 舊 vto_uid 不再授權；同一來源即使清 cookie，來源雜湊也必須維持一致。
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cookies } from "next/headers";
-import { getSupabaseAdmin } from "@/lib/supabase";
-import {
-  getOrCreateUserSession,
-  getUserSession,
-  hashSessionToken,
-  sourceHashForRequest,
-} from "@/lib/user";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createClient, isSupabaseAuthConfigured } from "@/lib/supabase/server";
+import { AUTH_REQUIRED_MESSAGE, getCurrentUser, requireUser, userDisplayName } from "@/lib/user";
 
-vi.mock("next/headers", () => ({ cookies: vi.fn() }));
-vi.mock("@/lib/supabase", () => ({ getSupabaseAdmin: vi.fn() }));
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn(),
+  isSupabaseAuthConfigured: vi.fn(() => true),
+}));
 
-function cookieStore(values: Record<string, string> = {}) {
-  return {
-    get: vi.fn((name: string) => (values[name] ? { name, value: values[name] } : undefined)),
-    set: vi.fn(),
-    has: vi.fn((name: string) => name in values),
-    delete: vi.fn(),
-  };
+function mockAuthUser(user: Record<string, unknown> | null, error: unknown = null) {
+  const getUser = vi.fn().mockResolvedValue({ data: { user }, error });
+  vi.mocked(createClient).mockResolvedValue({ auth: { getUser } } as never);
+  return getUser;
 }
 
-function mockSessionLookup(result: {
-  data: { user_id: string; source_hash: string } | null;
-  error: { message: string } | null;
-}) {
-  const maybeSingle = vi.fn().mockResolvedValue(result);
-  const gt = vi.fn().mockReturnValue({ maybeSingle });
-  const is = vi.fn().mockReturnValue({ gt });
-  const eq = vi.fn().mockReturnValue({ is });
-  const select = vi.fn().mockReturnValue({ eq });
-  const from = vi.fn().mockReturnValue({ select });
-  vi.mocked(getSupabaseAdmin).mockReturnValue({ from } as unknown as ReturnType<typeof getSupabaseAdmin>);
-  return { from, eq };
-}
+afterEach(() => vi.clearAllMocks());
 
-beforeEach(() => {
-  vi.stubEnv("SESSION_HASH_SECRET", "test-secret-that-is-at-least-32-characters-long");
-});
-
-afterEach(() => {
-  vi.clearAllMocks();
-  vi.unstubAllEnvs();
-});
-
-describe("既有 session 驗證", () => {
-  it("只有舊 vto_uid：不查 users、不接受 UUID 身分", async () => {
-    const store = cookieStore({ vto_uid: "11111111-1111-1111-1111-111111111111" });
-    vi.mocked(cookies).mockResolvedValue(store as never);
-    await expect(getUserSession()).resolves.toBeNull();
-    expect(getSupabaseAdmin).not.toHaveBeenCalled();
+describe("Supabase Auth 使用者", () => {
+  it("以 Auth server getUser 重新驗證並回傳正式 user.id", async () => {
+    const user = { id: "auth-user-id", email: "member@example.com", user_metadata: {} };
+    const getUser = mockAuthUser(user);
+    await expect(getCurrentUser()).resolves.toEqual(user);
+    expect(getUser).toHaveBeenCalledOnce();
   });
 
-  it("session token：只用 SHA-256 雜湊查 DB，再取回內部 user", async () => {
-    const token = "secret-browser-token";
-    vi.mocked(cookies).mockResolvedValue(cookieStore({ "__Host-vto_session": token }) as never);
-    const { eq } = mockSessionLookup({
-      data: { user_id: "user-a", source_hash: "source-a" },
-      error: null,
+  it("未登入時 requireUser 回 401 與可顯示的繁中訊息", async () => {
+    mockAuthUser(null);
+    await expect(requireUser()).rejects.toMatchObject({
+      status: 401,
+      message: AUTH_REQUIRED_MESSAGE,
     });
-    await expect(getUserSession()).resolves.toEqual({ userId: "user-a", sourceHash: "source-a" });
-    expect(eq).toHaveBeenCalledWith("token_hash", hashSessionToken(token));
-    expect(eq).not.toHaveBeenCalledWith("token_hash", token);
-  });
-});
-
-describe("建立匿名 session", () => {
-  it("DB 成功後才發 Secure/HttpOnly cookie，並淘汰 vto_uid", async () => {
-    const store = cookieStore({ vto_uid: "legacy-id" });
-    vi.mocked(cookies).mockResolvedValue(store as never);
-    const rpc = vi.fn().mockResolvedValue({ data: { allowed: true, user_id: "new-user" }, error: null });
-    vi.mocked(getSupabaseAdmin).mockReturnValue({ rpc } as unknown as ReturnType<typeof getSupabaseAdmin>);
-
-    const request = new Request("https://example.com/api/quota", {
-      headers: { "x-forwarded-for": "203.0.113.10" },
-    });
-    const session = await getOrCreateUserSession(request);
-    expect(session.userId).toBe("new-user");
-    expect(session.sourceHash).toHaveLength(64);
-    expect(store.set).toHaveBeenCalledWith(
-      "__Host-vto_session",
-      expect.not.stringMatching(/^[0-9a-f-]{36}$/i),
-      expect.objectContaining({ httpOnly: true, secure: true, sameSite: "lax", path: "/" })
-    );
-    expect(store.delete).toHaveBeenCalledWith("vto_uid");
-    const rpcArgs = rpc.mock.calls[0][1];
-    expect(rpcArgs.p_token_hash).toHaveLength(64);
-    expect(rpcArgs.p_token_hash).not.toBe(store.set.mock.calls[0][1]);
   });
 
-  it("同一來源清 cookie 後重建 session，來源雜湊仍相同", () => {
-    const first = new Request("https://example.com", { headers: { "x-forwarded-for": "203.0.113.10" } });
-    const second = new Request("https://example.com", { headers: { "x-forwarded-for": "203.0.113.10" } });
-    expect(sourceHashForRequest(first)).toBe(sourceHashForRequest(second));
+  it("Auth 未設定時不建立 client", async () => {
+    vi.mocked(isSupabaseAuthConfigured).mockReturnValue(false);
+    await expect(getCurrentUser()).resolves.toBeNull();
+    expect(createClient).not.toHaveBeenCalled();
   });
 
-  it("同一來源建立過多匿名身分時回 429", async () => {
-    vi.mocked(cookies).mockResolvedValue(cookieStore() as never);
-    const rpc = vi.fn().mockResolvedValue({ data: { allowed: false }, error: null });
-    vi.mocked(getSupabaseAdmin).mockReturnValue({ rpc } as unknown as ReturnType<typeof getSupabaseAdmin>);
-    const error = await getOrCreateUserSession(
-      new Request("https://example.com", { headers: { "x-forwarded-for": "203.0.113.10" } })
-    ).catch((caught) => caught);
-    expect(error).toMatchObject({ status: 429 });
+  it("顯示名稱優先使用 OAuth 名稱，否則使用 email 前綴", () => {
+    expect(userDisplayName({ user_metadata: { full_name: "王小明" } } as never)).toBe("王小明");
+    expect(userDisplayName({ email: "member@example.com", user_metadata: {} } as never)).toBe("member");
   });
 });

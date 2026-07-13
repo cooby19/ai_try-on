@@ -5,6 +5,7 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { Product } from "@/lib/types";
 import TryOnLauncher from "@/components/TryOnLauncher";
 import AddToCartButton from "@/components/AddToCartButton";
+import { getCurrentUser } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     .eq("id", id)
     .single<Product>();
   if (!product) notFound();
+  const user = await getCurrentUser();
 
   return (
     <div>
@@ -62,7 +64,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           )}
 
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <TryOnLauncher product={product} />
+            <TryOnLauncher product={product} isAuthenticated={Boolean(user)} />
             <AddToCartButton productName={product.name} />
           </div>
         </div>

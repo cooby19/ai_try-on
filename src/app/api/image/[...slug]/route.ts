@@ -1,6 +1,6 @@
 // GET /api/image/{bucket}/{path...} — 舊版短期相容 fallback。
 // 新版 API 已改回傳 Supabase Storage signed URL；新頁面不會再產生此 route 的網址。
-// 暫留一個部署週期，讓更新前已開啟頁面的舊 URL 不會立刻破圖，之後可刪除整個 route。
+// V0.2 起即使持有舊簽章，也必須登入且只能讀取目前 Auth 使用者資料夾。
 //
 // 為什麼存在：人物照與結果圖存在私有 bucket，前端原本拿的是 supabase.co 的短期 signed URL。
 // 但有些網路（飯店 / 公司 / 部分地區）會封鎖 supabase.co，瀏覽器直連就拿不到圖（顯示破圖）。
@@ -8,12 +8,11 @@
 // （瀏覽器只跟本站溝通，就像站內靜態圖一樣）。
 //
 // 隱私維持：舊網址帶「簽章 + 效期」(?exp&sig)，本身即為限時存取憑證（見 src/lib/supabase.ts
-// 的 verifyImageSignature）——與原本 Supabase signed URL 同樣的限時能力模型，
-// 只是改在自家網域。刻意不用 cookie 驗證：部分瀏覽器不會把 cookie 帶進 <img> 請求，會誤判成
-// 無權限而破圖；憑證放在網址上就沒有這個問題。
+// 的 verifyImageSignature）——與登入 session 雙重驗證，簽章本身不再是授權身分。
 import { getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET, verifyImageSignature } from "@/lib/supabase";
-import { jsonError, errorMessage } from "@/lib/http";
+import { jsonError, errorMessage, errorStatus } from "@/lib/http";
 import { fitImageToResponseLimit, MAX_IMAGE_RESPONSE_BYTES } from "@/lib/image-payload";
+import { requireUser } from "@/lib/user";
 
 type RouteParams = { params: Promise<{ slug: string[] }> };
 
@@ -22,6 +21,7 @@ const ALLOWED_BUCKETS = new Set<string>([PERSON_BUCKET, RESULT_BUCKET]);
 
 export async function GET(req: Request, { params }: RouteParams) {
   try {
+    const userId = (await requireUser()).id;
     const { slug } = await params;
     // slug = [bucket, ...pathParts]；至少要有 bucket + 一段路徑
     if (!slug || slug.length < 2) return jsonError(404, "找不到圖片。");
@@ -31,7 +31,13 @@ export async function GET(req: Request, { params }: RouteParams) {
 
     const storagePath = rest.join("/");
     // 路徑跳脫防護：拒絕 .. 之類試圖跳出使用者資料夾的路徑
-    if (!storagePath || storagePath.includes("..")) return jsonError(404, "找不到圖片。");
+    if (
+      !storagePath ||
+      storagePath.includes("..") ||
+      !storagePath.startsWith(`${userId}/`)
+    ) {
+      return jsonError(404, "找不到圖片。");
+    }
 
     // 授權：驗證網址上的簽章與效期（憑證即網址），不依賴 cookie。
     // 一律回 404（而非 403），不洩漏「這張圖是否存在」。
@@ -69,6 +75,6 @@ export async function GET(req: Request, { params }: RouteParams) {
       },
     });
   } catch (e) {
-    return jsonError(500, errorMessage(e));
+    return jsonError(errorStatus(e), errorMessage(e));
   }
 }

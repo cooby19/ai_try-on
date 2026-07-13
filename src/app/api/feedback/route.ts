@@ -1,15 +1,13 @@
 // POST /api/feedback — 記錄使用者對生成結果的「滿意 / 不滿意」回饋
 import { NextResponse } from "next/server";
-import { getUserSession } from "@/lib/user";
+import { requireUser } from "@/lib/user";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { jsonError, errorMessage, errorStatus } from "@/lib/http";
 import type { TryOnJob } from "@/lib/types";
 
 export async function POST(req: Request) {
   try {
-    const session = await getUserSession();
-    if (!session) return jsonError(401, "工作階段已失效，請重新整理頁面後再試。");
-    const userId = session.userId;
+    const userId = (await requireUser()).id;
 
     const body = (await req.json().catch(() => null)) as {
       jobId?: string;

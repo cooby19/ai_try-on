@@ -3,7 +3,7 @@
 //       → status = processing → 回傳 jobId，讓前端輪詢 GET /api/try-on/[jobId]。
 // 失敗時：status = failed + error_message，回傳「可操作」的錯誤訊息。
 import { NextResponse } from "next/server";
-import { getOrCreateUserSession } from "@/lib/user";
+import { requireUser } from "@/lib/user";
 import { getSupabaseAdmin, PERSON_BUCKET } from "@/lib/supabase";
 import {
   checkGenerationQuota,
@@ -19,7 +19,7 @@ import type { Product } from "@/lib/types";
 
 export async function POST(req: Request) {
   try {
-    const { userId, sourceHash } = await getOrCreateUserSession(req);
+    const userId = (await requireUser()).id;
     const body = (await req.json().catch(() => null)) as {
       productId?: string;
       personImagePath?: string;
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
 
     // 2. 前置額度檢查（每日 3 次、每商品重試 2 次）。
     // 非原子、僅供快速失敗與友善訊息；防併發的最終判定在步驟 3 的原子插入。
-    const quota = await checkGenerationQuota(userId, body.productId, sourceHash);
+    const quota = await checkGenerationQuota(userId, body.productId);
     if (!quota.allowed) {
       return jsonError(429, quota.reason ?? "已達生成上限。", {
         remainingToday: quota.remainingToday,
@@ -68,7 +68,6 @@ export async function POST(req: Request) {
     const budgetReservation = provider.costEstimate + getEnhancementCostEstimate(provider.providerName);
     const creation = await recordTryOnJob({
       userId,
-      sourceHash,
       productId: body.productId,
       personImagePath: body.personImagePath,
       garmentImageUrl: product.garment_image_url,
