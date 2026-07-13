@@ -1,13 +1,12 @@
 // GET /api/quota?productId=xxx — 查詢目前剩餘生成額度（給前端顯示用）
 import { NextResponse } from "next/server";
-import { getUserId } from "@/lib/user";
+import { getOrCreateUserSession } from "@/lib/user";
 import {
   checkGenerationQuota,
   DAILY_GENERATION_LIMIT,
-  PER_PRODUCT_RETRY_LIMIT,
 } from "@/lib/quota";
 import { getDefaultUserModel } from "@/lib/vto";
-import { jsonError, errorMessage } from "@/lib/http";
+import { jsonError, errorMessage, errorStatus } from "@/lib/http";
 
 export async function GET(req: Request) {
   try {
@@ -18,17 +17,9 @@ export async function GET(req: Request) {
     // 前端據此隱藏模型選擇器，避免在沒有真實 API 的環境誤導使用者。
     const defaultModel = getDefaultUserModel();
 
-    const userId = await getUserId();
-    if (!userId) {
-      // 還沒生成過（沒有 cookie）→ 額度全滿
-      return NextResponse.json({
-        remainingToday: DAILY_GENERATION_LIMIT,
-        remainingRetriesForProduct: 1 + PER_PRODUCT_RETRY_LIMIT,
-        dailyLimit: DAILY_GENERATION_LIMIT,
-        defaultModel,
-      });
-    }
-    const quota = await checkGenerationQuota(userId, productId);
+    // 第一次查額度就建立可信 session，避免前端先看到「全滿」但生成時才被來源限額拒絕。
+    const { userId, sourceHash } = await getOrCreateUserSession(req);
+    const quota = await checkGenerationQuota(userId, productId, sourceHash);
     return NextResponse.json({
       remainingToday: quota.remainingToday,
       remainingRetriesForProduct: quota.remainingRetriesForProduct,
@@ -36,6 +27,6 @@ export async function GET(req: Request) {
       defaultModel,
     });
   } catch (e) {
-    return jsonError(500, errorMessage(e));
+    return jsonError(errorStatus(e), errorMessage(e));
   }
 }

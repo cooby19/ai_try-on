@@ -1,14 +1,15 @@
 // POST /api/feedback — 記錄使用者對生成結果的「滿意 / 不滿意」回饋
 import { NextResponse } from "next/server";
-import { getUserId } from "@/lib/user";
+import { getUserSession } from "@/lib/user";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { jsonError, errorMessage } from "@/lib/http";
+import { jsonError, errorMessage, errorStatus } from "@/lib/http";
 import type { TryOnJob } from "@/lib/types";
 
 export async function POST(req: Request) {
   try {
-    const userId = await getUserId();
-    if (!userId) return jsonError(401, "找不到使用者資訊，請重新整理頁面。");
+    const session = await getUserSession();
+    if (!session) return jsonError(401, "工作階段已失效，請重新整理頁面後再試。");
+    const userId = session.userId;
 
     const body = (await req.json().catch(() => null)) as {
       jobId?: string;
@@ -39,6 +40,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ status: "success", message: "已收到你的回饋，謝謝！" });
   } catch (e) {
-    return jsonError(500, errorMessage(e));
+    return jsonError(errorStatus(e), errorMessage(e));
   }
 }

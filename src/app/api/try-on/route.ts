@@ -3,7 +3,7 @@
 //       → status = processing → 回傳 jobId，讓前端輪詢 GET /api/try-on/[jobId]。
 // 失敗時：status = failed + error_message，回傳「可操作」的錯誤訊息。
 import { NextResponse } from "next/server";
-import { getOrCreateUserId } from "@/lib/user";
+import { getOrCreateUserSession } from "@/lib/user";
 import { getSupabaseAdmin, PERSON_BUCKET } from "@/lib/supabase";
 import {
   checkGenerationQuota,
@@ -11,14 +11,15 @@ import {
   updateJobStatus,
 } from "@/lib/quota";
 import { getVTOProvider, resolveVTOProviderName } from "@/lib/vto";
+import { getEnhancementCostEstimate } from "@/lib/enhance";
 import { loadImageAsPngBuffer } from "@/lib/images";
-import { jsonError, errorMessage } from "@/lib/http";
+import { jsonError, errorMessage, errorStatus } from "@/lib/http";
 import { isOwnedPersonImagePath } from "@/lib/upload-intent";
 import type { Product } from "@/lib/types";
 
 export async function POST(req: Request) {
   try {
-    const userId = await getOrCreateUserId();
+    const { userId, sourceHash } = await getOrCreateUserSession(req);
     const body = (await req.json().catch(() => null)) as {
       productId?: string;
       personImagePath?: string;
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
 
     // 2. 前置額度檢查（每日 3 次、每商品重試 2 次）。
     // 非原子、僅供快速失敗與友善訊息；防併發的最終判定在步驟 3 的原子插入。
-    const quota = await checkGenerationQuota(userId, body.productId);
+    const quota = await checkGenerationQuota(userId, body.productId, sourceHash);
     if (!quota.allowed) {
       return jsonError(429, quota.reason ?? "已達生成上限。", {
         remainingToday: quota.remainingToday,
@@ -59,18 +60,21 @@ export async function POST(req: Request) {
 
     // 3. 原子建立任務紀錄（status = pending；建立紀錄本身就是額度 +1）。
     // 額度檢查與插入在 DB 函式內以 advisory lock 序列化（見 quota.ts 與
-    // migration 002），並發請求最多只有限額內的筆數能插入成功——
+    // migration 004），並發請求最多只有限額內的筆數能插入成功——
     // 超額請求在這裡被拒絕，從未到達 provider.submit()，零成本。
     // provider 由上面白名單解析的名稱決定；providerName / costEstimate 會寫進 job，
     // 之後輪詢用 job.provider 還原，所以選 Max 的任務全程都走 Max。
     const provider = getVTOProvider(providerName);
+    const budgetReservation = provider.costEstimate + getEnhancementCostEstimate(provider.providerName);
     const creation = await recordTryOnJob({
       userId,
+      sourceHash,
       productId: body.productId,
       personImagePath: body.personImagePath,
       garmentImageUrl: product.garment_image_url,
       provider: provider.providerName,
       costEstimate: provider.costEstimate,
+      budgetReservation,
     });
     if (!creation.allowed || !creation.job) {
       return jsonError(429, creation.reason ?? "已達生成上限。", {
@@ -112,6 +116,6 @@ export async function POST(req: Request) {
       return jsonError(502, message, { jobId: job.id });
     }
   } catch (e) {
-    return jsonError(500, errorMessage(e));
+    return jsonError(errorStatus(e), errorMessage(e));
   }
 }

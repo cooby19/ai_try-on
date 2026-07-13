@@ -3,7 +3,6 @@
 // 改動額度邏輯時若行為改變，測試必須跟著紅（強迫審視成本影響）。
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { ensureUserRow } from "@/lib/user";
 import {
   DAILY_GENERATION_LIMIT,
   DAILY_UPLOAD_LIMIT,
@@ -19,12 +18,6 @@ import {
 vi.mock("@/lib/supabase", () => ({
   getSupabaseAdmin: vi.fn(),
   PERSON_BUCKET: "person-uploads",
-}));
-
-// recordTryOnJob 的 FK 自癒路徑會呼叫 ensureUserRow；mock 掉以維持完全離線，
-// 也避免 user.ts 頂層的 next/headers import 進入 node 測試環境。
-vi.mock("@/lib/user", () => ({
-  ensureUserRow: vi.fn(),
 }));
 
 type JobRow = { id: string; product_id: string };
@@ -299,7 +292,7 @@ describe("查詢失敗", () => {
 });
 
 // ============================================================
-// recordTryOnJob：額度檢查＋插入的原子入口（migration 002 的 RPC）。
+// recordTryOnJob：額度檢查＋插入的原子入口（migration 004 的 RPC）。
 // 真正的併發防護（advisory lock、鎖內計數）活在 Postgres 函式裡，
 // 單元測試無法離線驗證；這裡釘死的是應用層的合約——
 // 參數 wiring（時區起點、額度常數）、拒絕文案對應、fail-closed 行為。
@@ -307,7 +300,7 @@ describe("查詢失敗", () => {
 // ============================================================
 type RpcResult = {
   allowed: boolean;
-  reject_reason?: "daily" | "product";
+  reject_reason?: "daily" | "product" | "source" | "platform";
   used_today: number;
   product_attempts_today: number;
   job?: Record<string, unknown>;
@@ -325,11 +318,13 @@ function mockRpc(result: { data: RpcResult | null; error: { message: string } | 
 
 const recordInput = {
   userId: "user-1",
+  sourceHash: "a".repeat(64),
   productId: "p-a",
   personImagePath: "user-1/photo.jpg",
   garmentImageUrl: "/garments/white-tee.svg",
   provider: "fashn",
   costEstimate: 0.075,
+  budgetReservation: 0.0775,
 };
 
 describe("原子插入：參數 wiring", () => {
@@ -345,7 +340,9 @@ describe("原子插入：參數 wiring", () => {
       "insert_try_on_job_within_quota",
       expect.objectContaining({
         p_user_id: "user-1",
+        p_source_hash: "a".repeat(64),
         p_product_id: "p-a",
+        p_budget_reservation: 0.0775,
         p_since: "2026-07-03T16:00:00.000Z",
         p_daily_limit: DAILY_GENERATION_LIMIT,
         p_product_attempt_limit: 1 + PER_PRODUCT_RETRY_LIMIT,
@@ -394,6 +391,28 @@ describe("原子插入：勝出與拒絕", () => {
     expect(result.reason).toContain(`${PER_PRODUCT_RETRY_LIMIT} 次`);
     expect(result.reason).toContain("其他商品");
   });
+
+  it("清 cookie 另建身分仍撞到來源上限：拒絕且不回 job", async () => {
+    mockRpc({
+      data: { allowed: false, reject_reason: "source", used_today: 0, product_attempts_today: 0 },
+      error: null,
+    });
+    const result = await recordTryOnJob(recordInput);
+    expect(result.allowed).toBe(false);
+    expect(result.job).toBeUndefined();
+    expect(result.reason).toContain("此網路");
+    expect(result.reason).toContain("明天");
+  });
+
+  it("平台預算熔斷：拒絕且不建立可計費 job", async () => {
+    mockRpc({
+      data: { allowed: false, reject_reason: "platform", used_today: 0, product_attempts_today: 0 },
+      error: null,
+    });
+    const result = await recordTryOnJob(recordInput);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("平台安全預算");
+  });
 });
 
 describe("原子插入：fail-closed", () => {
@@ -402,7 +421,7 @@ describe("原子插入：fail-closed", () => {
     await expect(recordTryOnJob(recordInput)).rejects.toThrow(/建立試穿任務失敗/);
   });
 
-  it("回傳形狀異常（如 migration 002 未執行）：throw，不冒多花錢的風險", async () => {
+  it("回傳形狀異常（如 migration 004 未執行）：throw，不冒多花錢的風險", async () => {
     // PostgREST 對不存在的函式會回 error，但防禦「函式存在卻被改壞」的情況：
     // data 不是預期形狀時放行 = 額度控管整個失效。
     mockRpc({ data: null, error: null });
@@ -415,59 +434,5 @@ describe("原子插入：fail-closed", () => {
       error: null,
     });
     await expect(recordTryOnJob(recordInput)).rejects.toThrow(/未回傳任務資料/);
-  });
-});
-
-// ============================================================
-// users 列缺失的自癒路徑（FK 23503）：
-// 首次補列瞬斷、或資料庫重建但使用者帶著一年效期的舊 cookie 時，
-// 插入會踩 try_on_jobs → users 的外鍵。若不自癒，這位使用者之後
-// 每次試穿都失敗、只能自己清 cookie 脫困——這裡釘死「補列一次、
-// 重試一次、僅此一次」的合約。
-// ============================================================
-describe("原子插入：users 列缺失自癒（FK 23503）", () => {
-  const fkError = {
-    message: 'insert or update on table "try_on_jobs" violates foreign key constraint',
-    code: "23503",
-  };
-  const successResult = {
-    data: { allowed: true, used_today: 1, product_attempts_today: 0, job: rpcJob } as RpcResult,
-    error: null,
-  };
-
-  function mockRpcSequence(results: Array<{ data: RpcResult | null; error: { message: string; code?: string } | null }>) {
-    const rpc = vi.fn();
-    for (const r of results) rpc.mockResolvedValueOnce(r);
-    vi.mocked(getSupabaseAdmin).mockReturnValue({
-      rpc,
-    } as unknown as ReturnType<typeof getSupabaseAdmin>);
-    return { rpc };
-  }
-
-  it("首次插入踩 FK：補一次 users 列後重試成功（使用者無感自癒）", async () => {
-    const { rpc } = mockRpcSequence([{ data: null, error: fkError }, successResult]);
-    const result = await recordTryOnJob(recordInput);
-    expect(vi.mocked(ensureUserRow)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(ensureUserRow)).toHaveBeenCalledWith("user-1");
-    expect(rpc).toHaveBeenCalledTimes(2);
-    expect(result.allowed).toBe(true);
-    expect(result.job?.id).toBe("job-new");
-  });
-
-  it("重試仍踩 FK：只重試一次即回報錯誤（防真正的資料異常變成無限重試）", async () => {
-    const { rpc } = mockRpcSequence([
-      { data: null, error: fkError },
-      { data: null, error: fkError },
-    ]);
-    await expect(recordTryOnJob(recordInput)).rejects.toThrow(/建立試穿任務失敗/);
-    expect(vi.mocked(ensureUserRow)).toHaveBeenCalledTimes(1);
-    expect(rpc).toHaveBeenCalledTimes(2);
-  });
-
-  it("非 FK 錯誤不觸發自癒：直接 throw、不多打一次 RPC（維持 fail-closed）", async () => {
-    const { rpc } = mockRpcSequence([{ data: null, error: { message: "connection refused" } }]);
-    await expect(recordTryOnJob(recordInput)).rejects.toThrow(/建立試穿任務失敗/);
-    expect(vi.mocked(ensureUserRow)).not.toHaveBeenCalled();
-    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });

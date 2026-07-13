@@ -3,11 +3,11 @@
 //   complete：從私有 Storage 下載剛直傳的原始檔，驗證／正規化後存成正式 JPEG。
 // GET /api/upload?path=...：替目前使用者的正式人物照刷新 1 小時 signed display URL。
 import { NextResponse } from "next/server";
-import { getOrCreateUserId, getUserId } from "@/lib/user";
+import { getOrCreateUserSession, getUserSession } from "@/lib/user";
 import { createSignedUrl, getSupabaseAdmin, PERSON_BUCKET } from "@/lib/supabase";
 import { normalizePersonImage, toJpegUploadBlob, validateFileMeta } from "@/lib/validation";
 import { checkUploadQuota } from "@/lib/quota";
-import { jsonError, errorMessage } from "@/lib/http";
+import { jsonError, errorMessage, errorStatus } from "@/lib/http";
 import {
   createUploadIntent,
   isOwnedPersonImagePath,
@@ -39,7 +39,7 @@ async function lockRawUpload(path: string): Promise<void> {
 
 export async function POST(req: Request) {
   try {
-    const userId = await getOrCreateUserId();
+    const { userId } = await getOrCreateUserSession(req);
     const body = (await req.json().catch(() => null)) as PrepareBody | CompleteBody | null;
     if (!body || (body.action !== "prepare" && body.action !== "complete")) {
       return jsonError(400, "上傳請求格式不正確，請重新選擇照片。");
@@ -133,13 +133,15 @@ export async function POST(req: Request) {
     await lockRawUpload(intent.rawPath);
     return NextResponse.json({ status: "success", path: intent.finalPath, previewUrl });
   } catch (e) {
-    return jsonError(500, errorMessage(e));
+    return jsonError(errorStatus(e), errorMessage(e));
   }
 }
 
 export async function GET(req: Request) {
   try {
-    const userId = await getUserId();
+    const session = await getUserSession();
+    if (!session) return jsonError(401, "請重新整理頁面以建立安全工作階段。");
+    const { userId } = session;
     const path = new URL(req.url).searchParams.get("path") ?? "";
     if (!userId || !isOwnedPersonImagePath(userId, path)) {
       return jsonError(404, "找不到圖片。");
@@ -148,6 +150,6 @@ export async function GET(req: Request) {
     if (!signedUrl) return jsonError(404, "找不到圖片。");
     return NextResponse.json({ status: "success", signedUrl });
   } catch (e) {
-    return jsonError(500, errorMessage(e));
+    return jsonError(errorStatus(e), errorMessage(e));
   }
 }

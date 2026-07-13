@@ -9,7 +9,7 @@
 - **AI 生成**：可替換的 VTO provider 抽象層
   - `mock`（須明確啟用）：不需 API key，約 3 秒回傳示範合成圖，可跑通完整流程
   - `fashn`：真實的 [FASHN Virtual Try-On API](https://fashn.ai)
-- **使用者識別**：匿名 cookie（`vto_uid`），不需註冊登入
+- **使用者識別**：可撤銷匿名 session；cookie 只存高熵 token，資料庫只存其雜湊
 
 ## 快速開始
 
@@ -26,6 +26,7 @@ npm install
    - `001_init.sql`（4 張資料表、2 個私有 storage bucket、3 件種子商品）
    - `002_atomic_quota_insert.sql`（額度檢查＋插入的原子函式；未執行的話「開始 AI 試穿」會直接失敗）
    - `003_direct_upload_constraints.sql`（人物照直傳的 8MiB／MIME bucket 限制；既有專案必跑）
+   - `004_secure_anonymous_sessions.sql`（安全匿名 session、來源額度與平台預算熔斷；既有專案必跑）
 
 ### 3. 設定環境變數
 
@@ -41,6 +42,9 @@ cp .env.local.example .env.local
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role key（**只在後端使用，不會進前端 bundle**） |
 | `VTO_PROVIDER` | `fashn`（預設）、`fashn-max` 或僅供流程展示的 `mock` |
 | `FASHN_API_KEY` | 只有用 `fashn` 時需要 |
+| `SESSION_HASH_SECRET` | 至少 32 字元、獨立產生的隨機密鑰；用於 session／來源雜湊 |
+| `CLIENT_IP_HEADER` | 可信 proxy 覆寫的來源 IP header；Vercel 用 `x-forwarded-for` |
+| `PLATFORM_DAILY_BUDGET_USD` | 每日可預留的 AI 成本上限（USD） |
 
 ### 4. 啟動
 
@@ -82,6 +86,8 @@ npm run dev
 |---|---|---|
 | 每人每日生成上限 | 3 次 | `src/lib/quota.ts` `DAILY_GENERATION_LIMIT` |
 | 每商品每人重試上限 | 2 次（首次 + 2 次重試） | `src/lib/quota.ts` `PER_PRODUCT_RETRY_LIMIT` |
+| 同一來源每日生成上限 | 3 次 | `src/lib/quota.ts` `SOURCE_DAILY_GENERATION_LIMIT` |
+| 平台每日成本預算 | 環境變數，預設 USD 5 | `PLATFORM_DAILY_BUDGET_USD` |
 
 額度直接統計 `try_on_jobs` 當日筆數（台北時區），失敗的生成也計入（因為已產生 API 成本）。每筆任務都記錄 `provider`、`cost_estimate`、`status`、`retry_count`、`error_message`。
 
@@ -100,6 +106,7 @@ npm run dev
 ## 隱私設計
 
 - 人物照與結果圖存放在**私有** bucket，前端只拿 1 小時有效的 signed URL
+- `__Host-vto_session` 是 Secure、HttpOnly、SameSite 的隨機 session token；舊 `vto_uid` UUID 不再被接受為身分或授權憑證
 - 原始人物照以綁定隨機 `.upload` path 的 Supabase signed URL 直傳；後端以 10 分鐘 HMAC 完成憑證核對使用者、path、MIME 與 bytes，驗證成功後才建立正式 `.jpg`
 - Supabase signed upload URL 官方固定約 2 小時且不能自訂 TTL；以 `upsert=false`、不可猜 path、8MiB/MIME bucket 限制、完成後的 1-byte path lock 與「正式 `.jpg` 才能進 AI」降低風險
 - 使用者可在結果頁刪除自己的試穿照片：**照片檔案立即刪除、圖片欄位清空**，但 job 列保留——否則使用者可以靠「生成 → 刪除」重複刷每日額度，成本指標也會失真
@@ -124,14 +131,14 @@ src/
 │   ├── quota.ts        # 額度檢查與任務紀錄
 │   ├── validation.ts   # 照片格式/大小/解析度檢查
 │   ├── supabase.ts     # 後端專用 Supabase client + signed URL
-│   ├── user.ts         # 匿名 cookie 使用者
+│   ├── user.ts         # 安全匿名 session
 │   └── images.ts       # 圖片載入/轉檔工具
 ├── app/
 │   ├── api/            # upload / try-on / feedback / quota
 │   ├── page.tsx        # 商品列表
 │   └── products/[id]/  # 商品頁
 └── components/         # TryOnLauncher（modal）/ TryOnResult / AddToCartButton
-supabase/migrations/               # 001 初始化；002 原子額度；003 直傳 bucket 限制
+supabase/migrations/               # 001 初始化；002 原子額度；003 直傳限制；004 安全 session／成本熔斷
 ```
 
 ## 未來擴充（刻意不在第一版做）

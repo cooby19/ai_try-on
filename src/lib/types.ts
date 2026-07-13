@@ -24,6 +24,7 @@ export interface Product {
 export interface TryOnJob {
   id: string;
   user_id: string;
+  source_hash: string | null;
   product_id: string;
   person_image_url: string; // Storage 路徑，不是公開 URL
   garment_image_url: string;
@@ -32,6 +33,7 @@ export interface TryOnJob {
   provider_job_id: string | null;
   status: JobStatus;
   cost_estimate: number;
+  budget_reservation: number;
   retry_count: number;
   error_message: string | null;
   created_at: string;

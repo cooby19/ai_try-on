@@ -32,6 +32,13 @@ export function getImageEnhancer(): ImageEnhancer | null {
   return factory();
 }
 
+// job 建立前預留「可能發生」的放大成本，讓平台預算熔斷涵蓋 Replicate，
+// 而 job.cost_estimate 仍只在真的放大成功後才增加，保留實際成本語意。
+export function getEnhancementCostEstimate(vtoProviderName: string): number {
+  if (!ENHANCE_TARGET_VTO_PROVIDERS.has(vtoProviderName)) return 0;
+  return getImageEnhancer()?.costEstimate ?? 0;
+}
+
 export interface EnhanceOutcome {
   image: Buffer; // 要存進 bucket 的圖：放大成功是放大圖；停用／跳過／失敗都是原圖
   enhanced: boolean; // 是否真的執行了放大（true 時才把 extraCost 計入 job.cost_estimate）

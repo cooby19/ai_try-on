@@ -9,11 +9,11 @@
 - **產品名稱**：樣衣間 — AI 虛擬試衣 MVP。
 - **核心功能**：使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On（VTO）API 產生「只替換上衣、盡量保留人物與背景」的試穿預覽圖。
 - **定位**：Demo / MVP。第一版刻意只做上衣（`category = 'tops'`），購物車按鈕是假動作（`AddToCartButton` 只切換文字，無實際購物車系統）。
-- **不需登入**：使用匿名 cookie（`vto_uid`，httpOnly、一年效期）識別使用者。
+- **不需登入**：使用可撤銷匿名 session；cookie 只存高熵 token，DB 只存 token 雜湊，舊 `vto_uid` 永不作為授權依據。
 - **內建三大機制**：
-  - 成本控管 — 每人每日最多生成 3 次、每商品每人最多重試 2 次，失敗也計入額度。
+  - 成本控管 — 個人與來源每日最多生成 3 次、每商品每人最多重試 2 次，另有平台每日 USD 預算熔斷，失敗也計入額度。
   - 回饋紀錄 — 使用者對結果按「滿意 / 不滿意」，寫入 `try_on_feedback` 表。
-  - 隱私設計 — 照片存私有 bucket、前端只拿 1 小時 signed URL、使用者可刪除自己的照片。
+  - 隱私設計 — 照片存私有 bucket、前端只拿 1 小時不透明加密 URL、使用者可刪除自己的照片。
 
 ## 2. 專案架構
 
@@ -46,14 +46,14 @@ src/
     │   ├── enhancer.ts         # ImageEnhancer 介面（結果圖放大後處理）
     │   ├── realesrgan.ts       # Real-ESRGAN 2× 放大 adapter（Replicate API）
     │   └── index.ts            # enhancer factory + 降級策略（ENHANCE_PROVIDER，預設 none）
-    ├── supabase.ts             # service role client + signed URL（僅限後端）
+    ├── supabase.ts             # service role client + 不透明短效圖片 URL（僅限後端）
     ├── quota.ts                # 額度檢查與 try_on_jobs 讀寫
-    ├── user.ts                 # 匿名 cookie 使用者
+    ├── user.ts                 # 可撤銷匿名 session
     ├── validation.ts           # 照片格式 / 大小 / 解析度檢查
     ├── images.ts               # 圖片載入、轉 PNG、base64 工具
     ├── http.ts                 # jsonError / errorMessage 共用工具
     └── types.ts                # 共用型別（對應資料表 + API view）
-supabase/migrations/              # 001 資料表、RLS、GRANT、bucket、種子商品；002 原子額度插入函式（advisory lock）
+supabase/migrations/              # 001 初始化；002 原子額度；003 安全 session、來源限額、平台預算熔斷
 public/garments/                  # 種子商品的上衣圖（SVG / JPG）
 public/samples/sample-person.jpg  # 測試用人物照
 .claude/launch.json               # preview 用 dev server 設定（npm run dev，port 3000）
@@ -68,7 +68,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 - **前端（Client Components）** 只呼叫自家 `/api/*` 端點，完全接觸不到 Supabase 金鑰與 VTO API key。
 - **Server Components**（`page.tsx`）直接用 `getSupabaseAdmin()` 查 DB 讀商品，不經過 API route。
 - **API Routes** 是唯一的後端：驗證輸入 → 檢查額度 → 存取 Supabase → 呼叫 VTO provider。
-- **Supabase** 負責 Postgres（4 張表）與 Storage（2 個私有 bucket：`person-uploads`、`try-on-results`）。
+- **Supabase** 負責 Postgres（含 `anonymous_sessions`）與 Storage（2 個私有 bucket：`person-uploads`、`try-on-results`）。
 - **VTO provider 抽象層**：`VTOProvider` 介面拆成 `submit()`（送出任務、回傳 provider 端任務 ID）與 `checkStatus()`（輪詢），因為主流 VTO API 都是非同步「送出 → 輪詢」模式，serverless route 不必長時間等待。要接新供應商（如 fal.ai）只需實作介面並在 `src/lib/vto/index.ts` 的 factory 註冊。
 
 ### 2.3 資料表（見 `supabase/migrations/001_init.sql`）
@@ -76,6 +76,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 | 資料表 | 用途 |
 |---|---|
 | `users` | 匿名使用者（uuid 主鍵；`email` 欄位保留給未來登入功能） |
+| `anonymous_sessions` | token 雜湊到內部 user 的可撤銷、可過期映射；含不可逆來源 HMAC |
 | `products` | 商品（含 `garment_image_url` 給 VTO 用、`category` 預設 `'tops'`、`size_chart` jsonb） |
 | `try_on_jobs` | 每次試穿任務：狀態機 `pending → processing → success/failed`，含 `provider`、`provider_job_id`、`cost_estimate`、`retry_count`、`error_message` |
 | `try_on_feedback` | 滿意 / 不滿意回饋（`rating` 限 `satisfied`/`unsatisfied`） |
@@ -88,18 +89,18 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 ### 3.1 AI 試穿主流程
 
 1. 商品頁點「AI 試穿」→ `TryOnLauncher` 開 modal，先打 `GET /api/quota?productId=` 顯示剩餘額度；回應中的 `defaultModel`（`"v1.6" | "max" | null`）決定是否顯示生成模型選擇器（`null` = mock 模式，隱藏選擇器）。
-2. 使用者上傳照片 → `POST /api/upload`：驗證格式（JPG/PNG/WebP、≤8MB、寬度 ≥320px）→ sharp 依 EXIF 轉正、壓成寬度 ≤1440 的 JPEG（quality 92，補 v1.6 的輸入解析度）→ 存入私有 bucket `person-uploads`（路徑 `{userId}/{uuid}.jpg`）→ 回傳 Storage 路徑 + 預覽用 signed URL。
+2. 使用者上傳照片 → `POST /api/upload`：驗證格式（JPG/PNG/WebP、≤8MB、寬度 ≥320px）→ sharp 依 EXIF 轉正、壓成寬度 ≤1440 的 JPEG（quality 92，補 v1.6 的輸入解析度）→ 存入私有 bucket `person-uploads`（路徑 `{userId}/{uuid}.jpg`）→ 回傳 Storage 路徑 + 預覽用不透明短效 URL。
 3. 按「開始 AI 試穿」→ `POST /api/try-on`：
    - 驗證 `personImagePath` 必須以 `{userId}/` 開頭（防止拿別人的照片生成）。
    - 選用欄位 `model`（`"v1.6"` 或 `"max"`）經 `resolveVTOProviderName()` 白名單映射成 provider 名稱（`fashn` / `fashn-max`）：不合法值回 400（此時尚未建 job、不占額度）；`VTO_PROVIDER=mock` 時忽略選擇一律用 mock；未傳則沿用 `VTO_PROVIDER` 預設。**前端不得直接傳 provider 內部名稱**（防止注入 `mock` 取得免費假結果）。兩種模型共用同一套每日額度，不分開計。
-   - `checkGenerationQuota()` 前置檢查每日 3 次與每商品 3 次（首次 + 2 次重試）上限——非原子、僅供快速失敗與友善訊息，防併發的最終判定在下一步。
-   - `recordTryOnJob()` 呼叫 Postgres 函式 `insert_try_on_job_within_quota`（migration 002）**原子**完成「額度計數＋插入 `try_on_jobs`」：函式內以 `pg_advisory_xact_lock` 序列化同一使用者當日的插入，當日筆數嚴格不超過上限；超額（並發競態落敗）的請求**不插入、直接回 429**——從未呼叫 AI API、零成本。**建立紀錄本身就是額度 +1**，設計上刻意不用計數器欄位，避免不同步；`retry_count` 由函式在鎖內算出。時區起點與額度常數由 `quota.ts` 傳入函式，維持單一出處。
+   - `checkGenerationQuota()` 前置檢查個人／來源每日 3 次與每商品 3 次（首次 + 2 次重試）上限——非原子、僅供快速失敗與友善訊息，防併發的最終判定在下一步。
+   - `recordTryOnJob()` 呼叫 migration 004 更新的 `insert_try_on_job_within_quota`，以固定鎖順序原子檢查平台預算、來源額度、個人額度與商品重試後才插入 job。清 cookie、建立多個匿名 session 或併發請求都不能超額；拒絕請求不呼叫 AI API。**建立紀錄本身就是額度與預算預留**，不用額外計數器欄位。
    - 從 Storage 下載人物照、載入上衣圖 → `provider.submit()` → 狀態改 `processing`，回傳 `jobId`。
    - 送出失敗時：狀態改 `failed` 並寫 `error_message`，回 502——**失敗仍占額度**（已產生 API 成本）。
 4. 前端每 2 秒輪詢 `GET /api/try-on/[jobId]`（上限 120 秒）：
    - 後端向 provider `checkStatus()`；成功時把結果圖存入私有 bucket `try-on-results`，狀態改 `success`。
    - 存檔前有一道選配的**放大後處理**（`src/lib/enhance/`，`ENHANCE_PROVIDER` 驅動、預設 `none` 停用）：只針對 v1.6（`fashn`）的結果做 2× 放大（864×1296 → 1728×2592，補其與 Max 的解析度缺口），mock / fashn-max 跳過；實際執行放大時把放大成本加進 `cost_estimate`。**放大失敗一律降級回原圖、job 仍標 `success`**——使用者已扣額度，選配後處理不能讓生成報廢。硬逾時 30 秒（`ENHANCE_TIMEOUT_MS`），總延遲留在前端 120 秒輪詢上限內。
-   - 回傳 `TryOnJobView`（圖片一律轉成 1 小時 signed URL，不回傳 Storage 路徑以外的內部資訊）。
+   - 回傳 `TryOnJobView`（圖片一律轉成 1 小時不透明加密 URL，不暴露 Storage 路徑或 user/job UUID）。
 5. 結果頁（`TryOnResult`）：原圖 / 結果對比、免責文案、滿意/不滿意回饋（`POST /api/feedback`）、重新生成、刪除照片。
 
 ### 3.2 刪除流程（隱私 vs 成本控管的取捨）
@@ -141,6 +142,9 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 |---|---|
 | `SUPABASE_URL` | Supabase 專案 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | service role key，**只能在後端使用** |
+| `SESSION_HASH_SECRET` | 至少 32 字元獨立隨機密鑰；用於來源 HMAC 與圖片 token 金鑰衍生 |
+| `CLIENT_IP_HEADER` | 可信反向代理覆寫的來源 IP header；Vercel 為 `x-forwarded-for` |
+| `PLATFORM_DAILY_BUDGET_USD` | 平台每日 AI 成本預算熔斷（USD） |
 | `VTO_PROVIDER` | `mock`（預設）或 `fashn` |
 | `FASHN_API_KEY` | 僅 `VTO_PROVIDER=fashn` 時需要 |
 | `ENHANCE_PROVIDER` | `none`（預設，停用放大後處理）或 `realesrgan`（Real-ESRGAN 2× 放大，經 Replicate，約 USD 0.0025/張；只作用於 v1.6 的結果） |
@@ -175,7 +179,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 
 1. **先理解現有架構再動手**：讀完本文件與相關原始碼，確認要改的位置與既有分層（前端 → API route → lib → Supabase/provider）一致，再開始修改。
 2. **不要任意重構整個專案**：不做大範圍搬移、改名、換資料夾結構；重構僅限於任務明確要求的範圍。
-3. **不要刪除既有功能**：包括額度控管、失敗計入額度、刪除時保留 job 列、私有 bucket + signed URL 等刻意的設計取捨（原因都寫在對應檔案的註解裡）。
+3. **不要刪除既有功能**：包括額度控管、失敗計入額度、刪除時保留 job 列、私有 bucket + 不透明短效圖片 URL 等刻意的設計取捨（原因都寫在對應檔案的註解裡）。
 4. **不要自行更換技術棧**：不換框架、不換資料庫、不引入新的狀態管理或 UI 套件，除非使用者明確要求。
 5. **不要硬編碼 API Key**：所有金鑰只能來自環境變數（`.env.local`），並更新 `.env.local.example` 的說明。
 6. **不要把敏感資訊寫進前端**：`SUPABASE_SERVICE_ROLE_KEY`、`FASHN_API_KEY`、`src/lib/supabase.ts` 等後端模組絕對不可出現在任何 `"use client"` 元件的 import 鏈中；前端只能呼叫自家 `/api/*`。
@@ -228,7 +232,7 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 ## 7. 已知限制與待改善項目
 
 - **只支援上衣**：`garmentType` 寫死 `"tops"`；褲子/洋裝/外套、全身照、多件試穿刻意留到之後（架構已預留 `category` 欄位與 `garmentType` 參數）。
-- **匿名 cookie 可被繞過**：清除 cookie 即可重置每日額度；MVP 接受此風險，未來加登入後可併入正式帳號（`users.email` 已預留）。
+- **匿名來源限制有網路邊界**：清 cookie 不會重置同一來源額度，但使用者更換 IP 仍可能取得新匿名來源；需要強身分保證時應導入 Supabase Auth。共享 NAT 也可能共用來源額度，數值需依產品流量調整。
 - **照片驗證只有基礎檢查**：格式/大小/解析度而已，不做電腦視覺判斷（多人、遮擋、背面照等交給 VTO API 端失敗後的錯誤轉譯）。
 - **輪詢由前端驅動、無 webhook/queue**：使用者在生成期間關閉視窗，job 可能永遠停在 `processing`（provider 端已完成也不會回寫）。
 - **無自動清理**：逾期人物照/結果圖不會定期刪除（README 列為 TODO），也沒有臉部模糊、GDPR 式資料匯出。
@@ -245,4 +249,4 @@ eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 2. **處理「輪詢中斷」的殘留 job**：加一個逾時回收機制（例如查詢時發現 `processing` 超過 N 分鐘就向 provider 查一次最終狀態或標記 failed），避免額度被永遠卡住的任務占用且狀態不準。
 3. **照片生命週期管理**：定期清除逾期的 `person-uploads` / `try-on-results` 檔案（Supabase scheduled function 或外部 cron），兌現 README 的隱私承諾。
 4. **擴充品類**：新增 `bottoms`/`dresses` 時，沿 `category` 欄位 + `garmentType` 參數 + provider factory 的既有預留擴充，不需要動架構。
-5. **正式帳號系統**：導入 Supabase Auth，將匿名 `vto_uid` 併入正式帳號，解決額度繞過問題。
+5. **正式帳號系統**：導入 Supabase Auth，將安全匿名 session 的資料併入正式帳號，提供跨裝置與跨網路的強身分保證。

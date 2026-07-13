@@ -1,7 +1,7 @@
 // GET    /api/try-on/[jobId] — 輪詢任務狀態；processing 時順便向 provider 查進度
 // DELETE /api/try-on/[jobId] — 刪除試穿紀錄與相關照片（隱私需求：使用者可刪除自己的紀錄）
 import { NextResponse } from "next/server";
-import { getUserId } from "@/lib/user";
+import { getUserSession } from "@/lib/user";
 import { createSignedUrl, getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET } from "@/lib/supabase";
 import { updateJobStatus } from "@/lib/quota";
 import { getVTOProvider } from "@/lib/vto";
@@ -9,15 +9,13 @@ import { enhanceResultImage } from "@/lib/enhance";
 import type { VTOSubmitInput } from "@/lib/vto/provider";
 import { loadImageAsPngBuffer } from "@/lib/images";
 import { toJpegUploadBlob } from "@/lib/validation";
-import { jsonError, errorMessage } from "@/lib/http";
+import { jsonError, errorMessage, errorStatus } from "@/lib/http";
 import { rawUploadPathForPersonImage } from "@/lib/upload-intent";
 import type { TryOnJob, TryOnJobView } from "@/lib/types";
 
 type RouteParams = { params: Promise<{ jobId: string }> };
 
-async function loadOwnedJob(jobId: string): Promise<TryOnJob | null> {
-  const userId = await getUserId();
-  if (!userId) return null;
+async function loadOwnedJob(jobId: string, userId: string): Promise<TryOnJob | null> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase
     .from("try_on_jobs")
@@ -31,7 +29,9 @@ async function loadOwnedJob(jobId: string): Promise<TryOnJob | null> {
 export async function GET(_req: Request, { params }: RouteParams) {
   try {
     const { jobId } = await params;
-    let job = await loadOwnedJob(jobId);
+    const session = await getUserSession();
+    if (!session) return jsonError(401, "請重新整理頁面以建立安全工作階段。");
+    let job = await loadOwnedJob(jobId, session.userId);
     if (!job) return jsonError(404, "找不到這筆試穿紀錄。");
 
     // 任務還在進行中 → 向 provider 查一次進度
@@ -117,14 +117,16 @@ export async function GET(_req: Request, { params }: RouteParams) {
     };
     return NextResponse.json(view);
   } catch (e) {
-    return jsonError(500, errorMessage(e));
+    return jsonError(errorStatus(e), errorMessage(e));
   }
 }
 
 export async function DELETE(_req: Request, { params }: RouteParams) {
   try {
     const { jobId } = await params;
-    const job = await loadOwnedJob(jobId);
+    const session = await getUserSession();
+    if (!session) return jsonError(401, "請重新整理頁面以建立安全工作階段。");
+    const job = await loadOwnedJob(jobId, session.userId);
     if (!job) return jsonError(404, "找不到這筆試穿紀錄。");
 
     const supabase = getSupabaseAdmin();
@@ -160,6 +162,6 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
 
     return NextResponse.json({ status: "success", message: "照片已刪除，生成次數紀錄保留。" });
   } catch (e) {
-    return jsonError(500, errorMessage(e));
+    return jsonError(errorStatus(e), errorMessage(e));
   }
 }

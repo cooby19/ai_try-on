@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getOrCreateUserId, getUserId } from "@/lib/user";
+import { getOrCreateUserSession, getUserSession } from "@/lib/user";
 import { createSignedUrl, getSupabaseAdmin } from "@/lib/supabase";
 import { checkUploadQuota } from "@/lib/quota";
 import { createUploadIntent } from "@/lib/upload-intent";
@@ -8,8 +8,8 @@ import { MAX_FILE_SIZE_BYTES } from "@/lib/upload-constraints";
 import { GET, POST } from "./route";
 
 vi.mock("@/lib/user", () => ({
-  getOrCreateUserId: vi.fn(),
-  getUserId: vi.fn(),
+  getOrCreateUserSession: vi.fn(),
+  getUserSession: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -42,8 +42,8 @@ function mockStorage(input?: { rawFile?: Blob }) {
 
 beforeEach(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-secret";
-  vi.mocked(getOrCreateUserId).mockResolvedValue(USER_A);
-  vi.mocked(getUserId).mockResolvedValue(USER_A);
+  vi.mocked(getOrCreateUserSession).mockResolvedValue({ userId: USER_A, sourceHash: "a".repeat(64) });
+  vi.mocked(getUserSession).mockResolvedValue({ userId: USER_A, sourceHash: "a".repeat(64) });
   vi.mocked(checkUploadQuota).mockResolvedValue({ allowed: true, usedToday: 0 });
   vi.mocked(createSignedUrl).mockResolvedValue("https://project.supabase.co/storage/signed/person.jpg");
 });
