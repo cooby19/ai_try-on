@@ -1,7 +1,7 @@
 // GET    /api/try-on/[jobId] — 輪詢任務狀態；processing 時順便向 provider 查進度
 // DELETE /api/try-on/[jobId] — 刪除試穿紀錄與相關照片（隱私需求：使用者可刪除自己的紀錄）
 import { NextResponse } from "next/server";
-import { getUserSession } from "@/lib/user";
+import { requireUser } from "@/lib/user";
 import { createSignedUrl, getSupabaseAdmin, PERSON_BUCKET, RESULT_BUCKET } from "@/lib/supabase";
 import { updateJobStatus } from "@/lib/quota";
 import { getVTOProvider } from "@/lib/vto";
@@ -29,9 +29,8 @@ async function loadOwnedJob(jobId: string, userId: string): Promise<TryOnJob | n
 export async function GET(_req: Request, { params }: RouteParams) {
   try {
     const { jobId } = await params;
-    const session = await getUserSession();
-    if (!session) return jsonError(401, "請重新整理頁面以建立安全工作階段。");
-    let job = await loadOwnedJob(jobId, session.userId);
+    const userId = (await requireUser()).id;
+    let job = await loadOwnedJob(jobId, userId);
     if (!job) return jsonError(404, "找不到這筆試穿紀錄。");
 
     // 任務還在進行中 → 向 provider 查一次進度
@@ -124,9 +123,8 @@ export async function GET(_req: Request, { params }: RouteParams) {
 export async function DELETE(_req: Request, { params }: RouteParams) {
   try {
     const { jobId } = await params;
-    const session = await getUserSession();
-    if (!session) return jsonError(401, "請重新整理頁面以建立安全工作階段。");
-    const job = await loadOwnedJob(jobId, session.userId);
+    const userId = (await requireUser()).id;
+    const job = await loadOwnedJob(jobId, userId);
     if (!job) return jsonError(404, "找不到這筆試穿紀錄。");
 
     const supabase = getSupabaseAdmin();

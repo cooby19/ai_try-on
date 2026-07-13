@@ -20,12 +20,13 @@
 
 ## 步驟 1：準備 Supabase（部署前必做）
 
-1. 在 Supabase Dashboard 進 **SQL Editor**，依序執行 `001_init.sql`、`002_atomic_quota_insert.sql`、`003_direct_upload_constraints.sql`、`004_secure_anonymous_sessions.sql`。
+1. 在 Supabase Dashboard 進 **SQL Editor**，依序執行 `001_init.sql`、`002_atomic_quota_insert.sql`、`003_direct_upload_constraints.sql`、`004_secure_anonymous_sessions.sql`、`005_supabase_auth_users.sql`。
    - 會建立 4 張資料表、2 個私有 storage bucket（`person-uploads`、`try-on-results`）、3 件種子商品。
    - migration 內含對 `service_role` 的明確 `GRANT`——新版 `sb_secret_` 金鑰在 SQL Editor 建表後**不會自動授權**，這段不可略過，否則後端讀寫會 permission denied。
    - 到 **Storage → Settings** 確認 Global file size limit 至少為 8MiB；`003` 會再把 `person-uploads` bucket 鎖成 8MiB 且只允許 JPEG/PNG/WebP。
 2. 到 **Project Settings → API**，記下：
-   - `Project URL` → 之後填 `SUPABASE_URL`
+   - `Project URL` → 之後填 `SUPABASE_URL` 與 `NEXT_PUBLIC_SUPABASE_URL`
+   - publishable key → 之後填 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
    - `service_role` key → 之後填 `SUPABASE_SERVICE_ROLE_KEY`（**只放後端環境變數，絕不進前端**）
 3. 記下專案所在 **Region**（如 `ap-southeast-1` 新加坡），步驟 4 讓 Vercel function 就近部署用。
 
@@ -46,19 +47,19 @@
 
 | 變數 | 值 | 何時需要 |
 |---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 專案 URL | 一律必填（Auth） |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key | 一律必填（可公開，不是 service role） |
 | `SUPABASE_URL` | Supabase 專案 URL | 一律必填 |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key | 一律必填（**僅後端**） |
 | `VTO_PROVIDER` | `mock` / `fashn` / `fashn-max` | 一律必填；正式跑 AI 設 `fashn` |
 | `FASHN_API_KEY` | FASHN API key | `VTO_PROVIDER=fashn` 或 `fashn-max` 時必填 |
 | `ENHANCE_PROVIDER` | `none`（預設）/ `realesrgan` | 一律建議設；MVP 用 `none` |
 | `REPLICATE_API_TOKEN` | Replicate API token | 僅 `ENHANCE_PROVIDER=realesrgan` 時必填（**僅後端**） |
-| `SESSION_HASH_SECRET` | 至少 32 字元的獨立隨機值 | 一律必填；可用 `openssl rand -base64 48` 產生 |
-| `CLIENT_IP_HEADER` | `x-forwarded-for` | Vercel 必填；若自訂 proxy，改為它覆寫且可信的 header |
 | `PLATFORM_DAILY_BUDGET_USD` | 例如 `5` | 一律必填；達到當日預算時停止新的 AI 呼叫 |
 
 > **MVP 建議組合**：`VTO_PROVIDER=fashn` + `ENHANCE_PROVIDER=none`。先跑通真實生成，放大後處理之後要開再開。若只想 demo 流程不花 API 錢，設 `VTO_PROVIDER=mock` 即可。
 >
-> **安全提醒**：`SUPABASE_SERVICE_ROLE_KEY`、`FASHN_API_KEY`、`REPLICATE_API_TOKEN`、`SESSION_HASH_SECRET` 只會被後端 API route 讀取，不會進前端 bundle。切勿在前端程式碼或 `NEXT_PUBLIC_*` 變數中引用它們。
+> **安全提醒**：`SUPABASE_SERVICE_ROLE_KEY`、`FASHN_API_KEY`、`REPLICATE_API_TOKEN` 只會被後端 API route 讀取，不會進前端 bundle。只有 Supabase URL 與 publishable key 可使用 `NEXT_PUBLIC_*`。
 
 ---
 
@@ -83,7 +84,7 @@
 用給的網址實際走一遍主流程，確認線上環境接得起後端與外部服務：
 
 1. 開首頁，確認商品列表出得來（代表 Server Component 能連上 Supabase、GRANT 正常）。
-2. 進任一商品頁 → 點「AI 試穿」→ modal 應顯示剩餘額度（代表 `GET /api/quota` 正常）。
+2. 依 README 設好 Supabase Auth 的 Site URL、Redirect URL、Google provider 與 Email OTP template；進商品頁點「AI 試穿」應先導向登入，登入後才顯示 modal 與額度。
 3. 分別上傳約 4MB、8MB 的正面半身照 → 應出現預覽（代表瀏覽器直傳 Storage、後端完成驗證與 private bucket signed URL 正常）。
    - 瀏覽器 Network 面板中，大圖 PUT 目的地應為 `*.supabase.co/storage/...`，不可是 Vercel `/api/upload`。
 4. 按「開始 AI 試穿」→ 前端開始輪詢，最終出結果圖：

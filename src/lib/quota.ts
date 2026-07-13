@@ -1,9 +1,8 @@
 // 成本控管（規格書第七節）：
 //   1. 每位使用者每日最多生成 3 次
 //   2. 每個商品每位使用者最多重試 2 次（首次 + 2 次重試 = 同商品最多 3 次）
-//   3. 同一來源每日最多生成 3 次，清 cookie 不會重置
-//   4. 平台每日預算到頂後全部熔斷
-//   5. 每次呼叫 AI API 前都必須先通過這裡的檢查
+//   3. 平台每日預算到頂後全部熔斷
+//   4. 每次呼叫 AI API 前都必須先通過這裡的檢查
 //
 // 設計說明：額度不是存一個計數器欄位，而是直接統計 try_on_jobs 的當日筆數。
 // 這樣「建立 job 紀錄」本身就是 incrementGenerationUsage，不會有計數器與紀錄不同步的問題。
@@ -13,9 +12,6 @@ import type { JobStatus, TryOnJob } from "./types";
 
 export const DAILY_GENERATION_LIMIT = 3;
 export const PER_PRODUCT_RETRY_LIMIT = 2;
-// 清 cookie 只會換 session，不會換來源額度。來源上限預設與個人上限相同，
-// 避免同一 IP 大量建立匿名身分把第三方 API 成本放大。
-export const SOURCE_DAILY_GENERATION_LIMIT = 3;
 // 每日照片上傳上限：生成額度只管 try_on_jobs，上傳本身不建 job，
 // 若不設限就是額度機制外的成本破口（sharp CPU + 私有 bucket 無限累積，
 // 且目前沒有自動清理）。取 3 次生成 × 換照片重試的合理餘裕。
@@ -48,10 +44,6 @@ function dailyLimitReason(): string {
 
 function productLimitReason(): string {
   return `這件商品今天已重新生成 ${PER_PRODUCT_RETRY_LIMIT} 次，達到上限。可以先試試其他商品，或明天再試。`;
-}
-
-function sourceLimitReason(): string {
-  return `此網路今天的 AI 試穿額度（${SOURCE_DAILY_GENERATION_LIMIT} 次）已用完，明天會自動恢復。`;
 }
 
 function platformBudgetReason(): string {
@@ -110,8 +102,7 @@ export async function checkUploadQuota(userId: string): Promise<UploadQuotaCheck
 
 export async function checkGenerationQuota(
   userId: string,
-  productId: string,
-  sourceHash?: string
+  productId: string
 ): Promise<QuotaCheck> {
   const supabase = getSupabaseAdmin();
   const since = todayStartUtcIso();
@@ -123,36 +114,15 @@ export async function checkGenerationQuota(
     .gte("created_at", since);
   if (error) throw new Error(`額度查詢失敗：${error.message}`);
 
-  let sourceUsedToday = 0;
-  if (sourceHash) {
-    const sourceResult = await supabase
-      .from("try_on_jobs")
-      .select("id")
-      .eq("source_hash", sourceHash)
-      .gte("created_at", since);
-    if (sourceResult.error) throw new Error(`來源額度查詢失敗：${sourceResult.error.message}`);
-    sourceUsedToday = (sourceResult.data ?? []).length;
-  }
-
   const usedToday = data.length;
   const productAttemptsToday = data.filter((j) => j.product_id === productId).length;
-  const remainingToday = Math.max(
-    0,
-    Math.min(DAILY_GENERATION_LIMIT - usedToday, SOURCE_DAILY_GENERATION_LIMIT - sourceUsedToday)
-  );
+  const remainingToday = Math.max(0, DAILY_GENERATION_LIMIT - usedToday);
   const remainingRetriesForProduct = Math.max(0, 1 + PER_PRODUCT_RETRY_LIMIT - productAttemptsToday);
 
   if (usedToday >= DAILY_GENERATION_LIMIT) {
     return {
       allowed: false,
       reason: dailyLimitReason(),
-      usedToday, remainingToday, productAttemptsToday, remainingRetriesForProduct,
-    };
-  }
-  if (sourceHash && sourceUsedToday >= SOURCE_DAILY_GENERATION_LIMIT) {
-    return {
-      allowed: false,
-      reason: sourceLimitReason(),
       usedToday, remainingToday, productAttemptsToday, remainingRetriesForProduct,
     };
   }
@@ -173,10 +143,10 @@ export interface TryOnJobCreation {
   job?: TryOnJob; // allowed = true 時必有值
 }
 
-// insert_try_on_job_within_quota（migration 004）回傳的 jsonb 形狀。
+// insert_try_on_job_within_quota（migration 005）回傳的 jsonb 形狀。
 interface AtomicInsertResult {
   allowed: boolean;
-  reject_reason?: "daily" | "product" | "source" | "platform";
+  reject_reason?: "daily" | "product" | "platform";
   used_today: number;
   product_attempts_today: number;
   job?: TryOnJob;
@@ -188,12 +158,11 @@ interface AtomicInsertResult {
 // 那三步不是原子操作。舊的複驗機制以 (created_at, id) 排名判定並發勝負，
 // 但 created_at 是交易「開始」時間、資料可見性卻跟隨「commit」順序，
 // 兩者倒置時（先開始者較晚 commit）並發雙方可各自算出自己在限內、
-// 雙雙放行而超額。migration 004 的 Postgres 函式用 pg_advisory_xact_lock
-// 序列化「平台＋來源＋使用者＋同一天」的檢查與插入，才能保證成本嚴格不超過上限。
+// 雙雙放行而超額。migration 005 的 Postgres 函式用 pg_advisory_xact_lock
+// 序列化「平台＋Auth 使用者＋同一天」的檢查與插入，才能保證成本嚴格不超過上限。
 // 時區邊界（p_since）與額度常數仍由本模組傳入，維持單一出處。
 export async function recordTryOnJob(input: {
   userId: string;
-  sourceHash: string;
   productId: string;
   personImagePath: string;
   garmentImageUrl: string;
@@ -204,7 +173,6 @@ export async function recordTryOnJob(input: {
   const supabase = getSupabaseAdmin();
   const rpcArgs = {
     p_user_id: input.userId,
-    p_source_hash: input.sourceHash,
     p_product_id: input.productId,
     p_person_image_url: input.personImagePath,
     p_garment_image_url: input.garmentImageUrl,
@@ -214,7 +182,6 @@ export async function recordTryOnJob(input: {
     p_since: todayStartUtcIso(),
     p_daily_limit: DAILY_GENERATION_LIMIT,
     p_product_attempt_limit: 1 + PER_PRODUCT_RETRY_LIMIT,
-    p_source_daily_limit: SOURCE_DAILY_GENERATION_LIMIT,
     p_platform_daily_budget: platformDailyBudgetUsd(),
   };
   const { data, error } = await supabase.rpc("insert_try_on_job_within_quota", rpcArgs);
@@ -224,22 +191,20 @@ export async function recordTryOnJob(input: {
   // 不能默默當成功或當額度充足放行（fail-closed，與額度查詢失敗同一原則）。
   const result = data as AtomicInsertResult | null;
   if (!result || typeof result.allowed !== "boolean") {
-    throw new Error("建立試穿任務失敗：額度函式回傳格式異常（請確認 migration 004 已執行）。");
+    throw new Error("建立試穿任務失敗：額度函式回傳格式異常（請確認 migration 005 已執行）。");
   }
 
   if (!result.allowed) {
-    // 拒絕文案由程式端對應（daily / product / source / platform），
+    // 拒絕文案由程式端對應（daily / product / platform），
     // 使用者在兩條路徑看到一字不差的訊息。
     return {
       allowed: false,
       reason:
         result.reject_reason === "product"
           ? productLimitReason()
-          : result.reject_reason === "source"
-            ? sourceLimitReason()
-            : result.reject_reason === "platform"
-              ? platformBudgetReason()
-              : dailyLimitReason(),
+          : result.reject_reason === "platform"
+            ? platformBudgetReason()
+            : dailyLimitReason(),
       remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - result.used_today),
     };
   }

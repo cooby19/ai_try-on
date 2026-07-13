@@ -1,6 +1,6 @@
 // GET /api/quota?productId=xxx — 查詢目前剩餘生成額度（給前端顯示用）
 import { NextResponse } from "next/server";
-import { getOrCreateUserSession } from "@/lib/user";
+import { requireUser } from "@/lib/user";
 import {
   checkGenerationQuota,
   DAILY_GENERATION_LIMIT,
@@ -17,9 +17,8 @@ export async function GET(req: Request) {
     // 前端據此隱藏模型選擇器，避免在沒有真實 API 的環境誤導使用者。
     const defaultModel = getDefaultUserModel();
 
-    // 第一次查額度就建立可信 session，避免前端先看到「全滿」但生成時才被來源限額拒絕。
-    const { userId, sourceHash } = await getOrCreateUserSession(req);
-    const quota = await checkGenerationQuota(userId, productId, sourceHash);
+    const userId = (await requireUser()).id;
+    const quota = await checkGenerationQuota(userId, productId);
     return NextResponse.json({
       remainingToday: quota.remainingToday,
       remainingRetriesForProduct: quota.remainingRetriesForProduct,

@@ -3,6 +3,7 @@
 // 上傳照片（含規範提示）→ 預覽 → 開始試穿 → 輪詢生成狀態 → 顯示結果與回饋。
 // 前端只呼叫自家後端 API，完全接觸不到 AI API key。
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { Product, TryOnJobView, TryOnModel } from "@/lib/types";
 import { validateFileMeta } from "@/lib/upload-constraints";
 import { uploadFileToSignedUrl } from "@/lib/direct-upload";
@@ -21,7 +22,13 @@ interface Quota {
   defaultModel: TryOnModel | null;
 }
 
-export default function TryOnLauncher({ product }: { product: Product }) {
+export default function TryOnLauncher({
+  product,
+  isAuthenticated,
+}: {
+  product: Product;
+  isAuthenticated: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("upload");
   const [uploading, setUploading] = useState(false);
@@ -224,6 +231,17 @@ export default function TryOnLauncher({ product }: { product: Product }) {
     setPersonPreview(null);
     setJob(null);
     setError(null);
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Link
+        href={`/login?returnTo=${encodeURIComponent(`/products/${product.id}`)}`}
+        className="rounded-lg bg-stone-900 px-5 py-2.5 text-center text-sm font-medium text-white hover:bg-stone-700 transition-colors"
+      >
+        AI 試穿
+      </Link>
+    );
   }
 
   return (
