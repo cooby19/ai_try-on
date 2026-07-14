@@ -2,6 +2,12 @@
 
 export type JobStatus = "pending" | "processing" | "success" | "failed";
 export type FeedbackRating = "satisfied" | "unsatisfied";
+export type AccountDeletionRequestStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "rejected"
+  | "cancelled";
 
 // 使用者可選的生成模型（對外名稱）。刻意不用 provider 內部名稱（fashn / fashn-max），
 // 對外與對內的映射由後端白名單控制（見 src/lib/vto/index.ts），前端無法注入任意 provider。
@@ -49,4 +55,23 @@ export interface TryOnJobView {
   costEstimate: number;
   retryCount: number;
   message?: string;
+}
+
+// /account Server Component 傳給互動元件的最小資料；不包含 Storage path、user_id、
+// provider 成本或其他不需要進入瀏覽器的欄位。
+export interface AccountTryOnItem {
+  jobId: string;
+  productId: string;
+  productName: string;
+  createdAt: string;
+  status: JobStatus;
+  resultImageUrl: string | null;
+  photosDeleted: boolean;
+}
+
+export interface AccountDeletionRequestView {
+  id: string;
+  requestedAt: string;
+  status: AccountDeletionRequestStatus;
+  reason: string | null;
 }

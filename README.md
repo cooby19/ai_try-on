@@ -28,6 +28,7 @@ npm install
    - `003_direct_upload_constraints.sql`（人物照直傳的 8MiB／MIME bucket 限制；既有專案必跑）
    - `004_secure_anonymous_sessions.sql`（安全匿名 session、來源額度與平台預算熔斷；既有專案必跑）
    - `005_supabase_auth_users.sql`（Supabase Auth 使用者同步、正式會員外鍵、移除匿名額度入口；V0.2 必跑）
+   - `006_account_deletion_requests.sql`（帳戶刪除申請、pending 唯一限制與 RLS；V0.4 必跑）
 
 ### 3. 設定環境變數
 
@@ -119,9 +120,10 @@ npm run dev
 | GET | `/api/upload?path=` | 刷新本人照片的短效 signed display URL |
 | POST | `/api/try-on` | 建立試穿任務（額度檢查 → 呼叫 provider） |
 | GET | `/api/try-on/[jobId]` | 輪詢任務狀態 |
-| DELETE | `/api/try-on/[jobId]` | 刪除試穿紀錄與照片（隱私） |
+| DELETE | `/api/try-on/[jobId]` | 刪除本人的試穿照片，保留 job／額度紀錄 |
 | POST | `/api/feedback` | 滿意 / 不滿意回饋 |
 | GET | `/api/quota?productId=` | 查詢剩餘額度 |
+| POST | `/api/account/deletion-request` | 為目前登入者建立帳戶刪除申請（不直接刪帳） |
 
 ## 隱私設計
 
@@ -130,8 +132,10 @@ npm run dev
 - 未登入仍可瀏覽商品；AI 試穿與會員額度不提供匿名模式，既有匿名測試資料不搬移也不再被流程使用
 - 原始人物照以綁定隨機 `.upload` path 的 Supabase signed URL 直傳；後端以 10 分鐘 HMAC 完成憑證核對使用者、path、MIME 與 bytes，驗證成功後才建立正式 `.jpg`
 - Supabase signed upload URL 官方固定約 2 小時且不能自訂 TTL；以 `upsert=false`、不可猜 path、8MiB/MIME bucket 限制、完成後的 1-byte path lock 與「正式 `.jpg` 才能進 AI」降低風險
-- 使用者可在結果頁刪除自己的試穿照片：**照片檔案立即刪除、圖片欄位清空**，但 job 列保留——否則使用者可以靠「生成 → 刪除」重複刷每日額度，成本指標也會失真
-- 照片只用於 AI 試穿；未經同意不用於模型訓練
+- 使用者可在結果頁或 `/account` 刪除自己的試穿照片：未被其他試穿引用的 Storage 檔案會刪除、該 job 的圖片欄位會清空，但 job 列保留——否則使用者可以靠「生成 → 刪除」重複刷每日額度，成本指標也會失真
+- 若同一人物照被重新生成的多筆 job 共用，刪除單筆時先移除該筆引用，最後一筆引用刪除時才移除 Storage 檔案，避免破壞仍保留的試穿結果
+- `/account` 會清楚標示照片已刪除；刪除不可復原，但商品、狀態、時間、用量與必要成本資訊可能為防濫用與成本稽核保留
+- 帳戶刪除按鈕只建立 `account_deletion_requests` 的 pending 申請，不會直接刪除 Supabase Auth 使用者、照片或資料列；後續需由營運／管理流程審核處理
 - API key 只存在後端環境變數（已驗證不會出現在前端 bundle）
 - TODO（未來強化）：定期自動清除逾期照片、上傳前臉部模糊選項、GDPR 式資料匯出
 
@@ -153,14 +157,16 @@ src/
 │   ├── validation.ts   # 照片格式/大小/解析度檢查
 │   ├── supabase.ts     # 後端專用 Supabase client + signed URL
 │   ├── user.ts         # Supabase Auth 使用者驗證
+│   ├── account.ts      # 帳戶中心最小 DTO 與本人資料查詢
 │   ├── supabase/       # browser/server/proxy SSR Auth clients
 │   └── images.ts       # 圖片載入/轉檔工具
 ├── app/
-│   ├── api/            # upload / try-on / feedback / quota
+│   ├── api/            # upload / try-on / feedback / quota / account deletion request
+│   ├── account/        # 帳戶中心（基本資料、試穿、隱私、危險操作）
 │   ├── page.tsx        # 商品列表
 │   └── products/[id]/  # 商品頁
 └── components/         # TryOnLauncher（modal）/ TryOnResult / AddToCartButton
-supabase/migrations/               # 001–004 舊版基礎；005 Supabase Auth 正式會員與新額度 RPC
+supabase/migrations/               # 001–005 基礎與 Auth；006 帳戶刪除申請
 ```
 
 ## 未來擴充（刻意不在第一版做）

@@ -7,6 +7,7 @@ import { POST as tryOnPost } from "@/app/api/try-on/route";
 import { GET as uploadGet, POST as uploadPost } from "@/app/api/upload/route";
 import { DELETE as jobDelete, GET as jobGet } from "@/app/api/try-on/[jobId]/route";
 import { GET as imageGet } from "@/app/api/image/[...slug]/route";
+import { POST as deletionRequestPost } from "@/app/api/account/deletion-request/route";
 
 vi.mock("@/lib/user", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({
@@ -56,6 +57,18 @@ describe("AI 試穿相關 API 必須登入", () => {
       await imageGet(new Request("https://shop.test/api/image/person-uploads/user/photo.jpg"), {
         params: Promise.resolve({ slug: ["person-uploads", "user", "photo.jpg"] }),
       })
+    );
+  });
+
+  it("帳戶刪除申請", async () => {
+    await expectUnauthorized(
+      await deletionRequestPost(
+        new Request("https://shop.test/api/account/deletion-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        })
+      )
     );
   });
 });

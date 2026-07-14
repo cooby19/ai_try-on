@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createClient, isSupabaseAuthConfigured } from "@/lib/supabase/server";
-import { AUTH_REQUIRED_MESSAGE, getCurrentUser, requireUser, userDisplayName } from "@/lib/user";
+import {
+  AUTH_REQUIRED_MESSAGE,
+  getCurrentUser,
+  requireUser,
+  userDisplayName,
+  userLoginMethod,
+} from "@/lib/user";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({
@@ -41,5 +47,11 @@ describe("Supabase Auth 使用者", () => {
   it("顯示名稱優先使用 OAuth 名稱，否則使用 email 前綴", () => {
     expect(userDisplayName({ user_metadata: { full_name: "王小明" } } as never)).toBe("王小明");
     expect(userDisplayName({ email: "member@example.com", user_metadata: {} } as never)).toBe("member");
+  });
+
+  it("登入方式只顯示 Google 或 Email", () => {
+    expect(userLoginMethod({ app_metadata: { provider: "google" } } as never)).toBe("Google");
+    expect(userLoginMethod({ identities: [{ provider: "google" }] } as never)).toBe("Google");
+    expect(userLoginMethod({ app_metadata: { provider: "email" } } as never)).toBe("Email");
   });
 });

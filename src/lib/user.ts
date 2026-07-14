@@ -26,3 +26,17 @@ export function userDisplayName(user: User): string {
   if (typeof metadataName === "string" && metadataName.trim()) return metadataName.trim();
   return user.email?.split("@", 1)[0] || "會員";
 }
+
+export function userLoginMethod(user: User): "Google" | "Email" {
+  const primaryProvider = user.app_metadata?.provider;
+  const providers = user.app_metadata?.providers;
+  const hasGoogleIdentity = user.identities?.some((identity) => identity.provider === "google");
+  if (
+    primaryProvider === "google" ||
+    (Array.isArray(providers) && providers.includes("google")) ||
+    hasGoogleIdentity
+  ) {
+    return "Google";
+  }
+  return "Email";
+}
