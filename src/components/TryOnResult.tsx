@@ -2,12 +2,13 @@
 // 試穿結果（規格書第十、十一節）：原圖 / 結果對比、免責文案、
 // 滿意 / 不滿意回饋、重新生成、加入購物車、刪除紀錄（隱私）。
 import { useState, type ReactNode } from "react";
-import type { Product, TryOnJobView, FeedbackRating } from "@/lib/types";
+import type { Product, ProductVariant, TryOnJobView, FeedbackRating } from "@/lib/types";
 import AddToCartButton from "./AddToCartButton";
 
 export default function TryOnResult({
   job,
   product,
+  variants,
   personPreview,
   canRegenerate,
   onRegenerate,
@@ -18,6 +19,7 @@ export default function TryOnResult({
 }: {
   job: TryOnJobView;
   product: Product;
+  variants: ProductVariant[];
   personPreview: string;
   canRegenerate: boolean;
   onRegenerate: () => void;
@@ -153,7 +155,7 @@ export default function TryOnResult({
 
       {/* 動作列 */}
       <div className="mt-5 flex flex-wrap gap-3">
-        <AddToCartButton productName={product.name} />
+        <AddToCartButton productName={product.name} variants={variants} />
         <button
           onClick={onRegenerate}
           disabled={!canRegenerate}
