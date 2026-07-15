@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import type { Product } from "@/lib/types";
+import type { Product, ProductVariant } from "@/lib/types";
 import TryOnLauncher from "@/components/TryOnLauncher";
 import AddToCartButton from "@/components/AddToCartButton";
 import { getCurrentUser } from "@/lib/user";
@@ -18,8 +18,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     .from("products")
     .select("*")
     .eq("id", id)
+    .eq("is_active", true)
     .single<Product>();
   if (!product) notFound();
+  const { data: variants } = await supabase
+    .from("product_variants")
+    .select("*")
+    .eq("product_id", id)
+    .order("created_at")
+    .returns<ProductVariant[]>();
   const user = await getCurrentUser();
 
   return (
@@ -64,8 +71,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           )}
 
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <TryOnLauncher product={product} isAuthenticated={Boolean(user)} />
-            <AddToCartButton productName={product.name} />
+            <TryOnLauncher product={product} variants={variants ?? []} isAuthenticated={Boolean(user)} />
+            <AddToCartButton productName={product.name} variants={variants ?? []} />
           </div>
         </div>
       </div>

@@ -24,7 +24,52 @@ export interface Product {
   fit: string | null;
   material: string | null;
   size_chart: Record<string, string> | null;
+  is_active: boolean;
   created_at: string;
+}
+
+export interface ProductVariant {
+  id: string;
+  product_id: string;
+  size: string;
+  stock_quantity: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocalCartItem {
+  variantId: string;
+  quantity: number;
+}
+
+export interface StoredGuestCart {
+  version: 1;
+  guestCartId: string;
+  items: LocalCartItem[];
+}
+
+export type CartUnavailableReason = "product_inactive" | "variant_inactive" | "out_of_stock";
+
+export interface CartItemView {
+  variantId: string;
+  productId: string;
+  name: string;
+  imageUrl: string;
+  size: string;
+  unitPrice: number;
+  quantity: number;
+  maxQuantity: number;
+  available: boolean;
+  unavailableReason: CartUnavailableReason | null;
+  lineSubtotal: number;
+}
+
+export interface CartView {
+  items: CartItemView[];
+  itemCount: number;
+  subtotal: number;
+  notices: string[];
 }
 
 export interface TryOnJob {
