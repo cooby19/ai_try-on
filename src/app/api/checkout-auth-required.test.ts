@@ -3,14 +3,17 @@ import { AppError } from "@/lib/http";
 import { requireUser } from "@/lib/user";
 import { GET as addressesGet } from "./addresses/route";
 import { GET as shippingGet } from "./shipping-methods/route";
-import { POST as ordersPost } from "./orders/route";
+import { GET as ordersGet, POST as ordersPost } from "./orders/route";
+import { POST as mockPaymentPost } from "./orders/[orderId]/mock-payment/route";
 import { PATCH as addressPatch } from "./addresses/[addressId]/route";
 import { getAddressesForUser, updateAddressForUser } from "@/lib/addresses";
-import { getShippingMethods, createOrderFromCart } from "@/lib/orders";
+import { getShippingMethods, createOrderFromCart, getOrdersForUser } from "@/lib/orders";
+import { simulateMockPaymentForUser } from "@/lib/mock-payments";
 
 vi.mock("@/lib/user", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/addresses", () => ({ getAddressesForUser: vi.fn(), createAddressForUser: vi.fn(), updateAddressForUser: vi.fn(), deleteAddressForUser: vi.fn() }));
-vi.mock("@/lib/orders", () => ({ getShippingMethods: vi.fn(), createOrderFromCart: vi.fn() }));
+vi.mock("@/lib/orders", () => ({ getShippingMethods: vi.fn(), createOrderFromCart: vi.fn(), getOrdersForUser: vi.fn() }));
+vi.mock("@/lib/mock-payments", () => ({ simulateMockPaymentForUser: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -18,11 +21,16 @@ beforeEach(() => {
 });
 
 describe("結帳 API 登入保護", () => {
-  it("未登入不能讀取地址、運送方式或建立訂單", async () => {
+  it("未登入不能讀取地址、運送方式、訂單或建立訂單", async () => {
     const responses = await Promise.all([
       addressesGet(),
       shippingGet(),
+      ordersGet(),
       ordersPost(new Request("https://shop.test/api/orders", { method: "POST", body: "{}" })),
+      mockPaymentPost(
+        new Request("https://shop.test/api/orders/order-id/mock-payment", { method: "POST", body: "{}" }),
+        { params: Promise.resolve({ orderId: "order-id" }) }
+      ),
     ]);
     for (const response of responses) {
       expect(response.status).toBe(401);
@@ -31,6 +39,8 @@ describe("結帳 API 登入保護", () => {
     expect(getAddressesForUser).not.toHaveBeenCalled();
     expect(getShippingMethods).not.toHaveBeenCalled();
     expect(createOrderFromCart).not.toHaveBeenCalled();
+    expect(getOrdersForUser).not.toHaveBeenCalled();
+    expect(simulateMockPaymentForUser).not.toHaveBeenCalled();
   });
 
   it("地址更新只會使用目前 session 的使用者 ID", async () => {

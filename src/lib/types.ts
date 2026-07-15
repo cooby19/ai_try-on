@@ -87,7 +87,16 @@ export interface ShippingMethod {
   fee: number;
 }
 
-export type OrderStatus = "pending_payment" | "paid" | "cancelled";
+export type OrderStatus =
+  | "pending_payment"
+  | "processing"
+  | "payment_failed"
+  | "cancelled"
+  | "expired";
+
+export type PaymentStatus = "pending" | "succeeded" | "failed" | "cancelled" | "expired";
+export type MockPaymentOutcome = "success" | "failure" | "cancelled" | "expired";
+export type InventoryReservationStatus = "active" | "completed" | "released";
 
 export interface OrderItemView {
   id: string;
@@ -115,6 +124,40 @@ export interface OrderView {
   total: number;
   createdAt: string;
   items: OrderItemView[];
+  payment: PaymentView | null;
+  reservation: InventoryReservationView | null;
+}
+
+export interface InventoryReservationView {
+  status: InventoryReservationStatus;
+  expiresAt: string;
+}
+
+export interface PaymentEventView {
+  id: string;
+  eventId: string;
+  result: Exclude<PaymentStatus, "pending">;
+  ignored: boolean;
+  processedAt: string;
+}
+
+export interface PaymentView {
+  id: string;
+  transactionId: string;
+  status: PaymentStatus;
+  failureReason: string | null;
+  paidAt: string | null;
+  updatedAt: string;
+  events: PaymentEventView[];
+}
+
+export interface OrderListItem {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  total: number;
+  createdAt: string;
 }
 
 export interface TryOnJob {

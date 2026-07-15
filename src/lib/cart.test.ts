@@ -56,7 +56,7 @@ describe("購物車伺服器 DTO", () => {
     expect(eq).toHaveBeenCalledWith("user_id", "current-auth-user");
   });
 
-  it("訪客解析只使用資料庫目前價格與庫存，並下修超量數量", async () => {
+  it("訪客解析以可售量（扣除他人保留量後）下修超量數量", async () => {
     const variants = [{
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       product_id: "product-1",
@@ -68,11 +68,15 @@ describe("購物車伺服器 DTO", () => {
     const returns = vi.fn().mockResolvedValue({ data: variants, error: null });
     const inFilter = vi.fn().mockReturnValue({ returns });
     const select = vi.fn().mockReturnValue({ in: inFilter });
-    vi.mocked(getSupabaseAdmin).mockReturnValue({ from: vi.fn().mockReturnValue({ select }) } as never);
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ variant_id: variants[0].id, available_quantity: 1 }],
+      error: null,
+    });
+    vi.mocked(getSupabaseAdmin).mockReturnValue({ from: vi.fn().mockReturnValue({ select }), rpc } as never);
 
     const result = await resolveGuestCart([{ variantId: variants[0].id, quantity: 9 }]);
-    expect(result.items[0]).toMatchObject({ unitPrice: 590, quantity: 3, lineSubtotal: 1770 });
+    expect(result.items[0]).toMatchObject({ unitPrice: 590, quantity: 1, maxQuantity: 1, lineSubtotal: 590 });
     expect(result.notices[0]).toContain("依庫存調整");
+    expect(rpc).toHaveBeenCalledWith("get_available_inventory", { p_variant_ids: [variants[0].id] });
   });
 });
-
