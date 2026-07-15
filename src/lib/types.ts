@@ -96,6 +96,7 @@ export type OrderStatus =
 
 export type PaymentStatus = "pending" | "succeeded" | "failed" | "cancelled" | "expired";
 export type MockPaymentOutcome = "success" | "failure" | "cancelled" | "expired";
+export type InventoryReservationStatus = "active" | "completed" | "released";
 
 export interface OrderItemView {
   id: string;
@@ -124,6 +125,12 @@ export interface OrderView {
   createdAt: string;
   items: OrderItemView[];
   payment: PaymentView | null;
+  reservation: InventoryReservationView | null;
+}
+
+export interface InventoryReservationView {
+  status: InventoryReservationStatus;
+  expiresAt: string;
 }
 
 export interface PaymentEventView {

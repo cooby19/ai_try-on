@@ -32,6 +32,7 @@ npm install
    - `007_persistent_cart.sql`（商品尺寸／庫存、帳號購物車、冪等訪客合併 RPC；V0.5 必跑）
    - `008_checkout_orders.sql`（地址簿、運送方式、原子結帳與待付款訂單；V0.6 必跑）
    - `009_mock_payments_and_order_history.sql`（Mock 付款、Webhook 冪等事件與訂單付款狀態；V0.7 必跑）
+   - `010_inventory_reservations.sql`（庫存保留、付款成功才扣庫存、失敗／取消／逾期自動釋放；V0.7 必跑）
 
 ### 3. 設定環境變數
 
@@ -146,6 +147,13 @@ npm run dev
 3. Webhook 共用處理器驗證簽章與 payload，再由單一 Postgres RPC 鎖定訂單、記錄事件並更新付款／訂單狀態。
 4. 相同 `event_id` 重送只回傳既有結果；終態之後晚到的不同事件會保留稽核紀錄，但不覆寫成功或其他既有結果。
 5. `/orders` 與 `/orders/[orderId]` 都先驗證 Supabase Auth 使用者，後端查詢同時限制 `user_id`；未登入者會被導向登入。
+
+## V0.7 庫存保留規則
+
+- 加入或修改購物車不會扣減 `stock_quantity`。
+- 建立待付款訂單時會建立 30 分鐘的庫存保留；可售量以「實際庫存 − 有效保留量」計算。
+- Mock Payment Webhook 只有在回傳成功時才會在同一筆資料庫交易中扣減實際庫存並完成保留。
+- 付款失敗、取消、逾期與保留到期時只釋放保留，不會扣減實際庫存；相同 Webhook 事件重送不會重複扣除或釋放。
 
 ## V0.5 購物車資料流
 

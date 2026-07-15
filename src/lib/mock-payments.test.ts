@@ -68,6 +68,15 @@ describe("Mock payment Webhook", () => {
     await expect(processMockPaymentWebhook(rawBody, signMockPaymentWebhook(rawBody))).resolves.toMatchObject({ reused: true });
   });
 
+  it("庫存保留已失效時，將付款成功事件轉為可處理的衝突錯誤", async () => {
+    const rawBody = JSON.stringify(buildMockPaymentWebhook(orderId, "success"));
+    rpc.mockResolvedValue({ data: { status: "reservation_unavailable" }, error: null });
+    await expect(processMockPaymentWebhook(rawBody, signMockPaymentWebhook(rawBody))).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("庫存保留"),
+    });
+  });
+
   it("模擬入口只允許目前使用者的待付款訂單", async () => {
     maybeSingle.mockResolvedValue({ data: null, error: null });
     await expect(simulateMockPaymentForUser("session-user", orderId, "success")).rejects.toMatchObject({ status: 404 });

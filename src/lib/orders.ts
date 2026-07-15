@@ -7,6 +7,8 @@ import type {
   OrderListItem,
   OrderStatus,
   OrderView,
+  InventoryReservationStatus,
+  InventoryReservationView,
   PaymentEventView,
   PaymentStatus,
   PaymentView,
@@ -73,6 +75,11 @@ interface OrderListRow {
   created_at: string;
 }
 
+interface InventoryReservationRow {
+  status: InventoryReservationStatus;
+  expires_at: string;
+}
+
 interface CreateOrderResult {
   status?: string;
   orderId?: string;
@@ -106,7 +113,11 @@ function toPaymentView(row: PaymentRow, events: PaymentEventRow[]): PaymentView 
   };
 }
 
-function toOrderView(row: OrderRow, payment: PaymentView | null): OrderView {
+function toOrderView(
+  row: OrderRow,
+  payment: PaymentView | null,
+  reservation: InventoryReservationView | null
+): OrderView {
   return {
     id: row.id,
     orderNumber: row.order_number,
@@ -121,6 +132,7 @@ function toOrderView(row: OrderRow, payment: PaymentView | null): OrderView {
     total: Number(row.total),
     createdAt: row.created_at,
     payment,
+    reservation,
     items: row.order_items.map((item) => ({
       id: item.id,
       productId: item.product_id,
@@ -212,13 +224,23 @@ export async function getOrderForUser(userId: string, orderId: string): Promise<
   if (error) throw new OrderError(500, `訂單讀取失敗：${error.message}`);
   if (!data) return null;
 
-  const { data: paymentRow, error: paymentError } = await supabase
-    .from("payments")
-    .select("id, order_id, transaction_id, status, failure_reason, paid_at, updated_at")
-    .eq("order_id", data.id)
-    .eq("user_id", userId)
-    .maybeSingle<PaymentRow>();
+  const [paymentResponse, reservationResponse] = await Promise.all([
+    supabase
+      .from("payments")
+      .select("id, order_id, transaction_id, status, failure_reason, paid_at, updated_at")
+      .eq("order_id", data.id)
+      .eq("user_id", userId)
+      .maybeSingle<PaymentRow>(),
+    supabase
+      .from("inventory_reservations")
+      .select("status, expires_at")
+      .eq("order_id", data.id)
+      .order("created_at", { ascending: true })
+      .returns<InventoryReservationRow[]>(),
+  ]);
+  const { data: paymentRow, error: paymentError } = paymentResponse;
   if (paymentError) throw new OrderError(500, `付款紀錄讀取失敗：${paymentError.message}`);
+  if (reservationResponse.error) throw new OrderError(500, `庫存保留讀取失敗：${reservationResponse.error.message}`);
 
   let payment: PaymentView | null = null;
   if (paymentRow) {
@@ -232,7 +254,17 @@ export async function getOrderForUser(userId: string, orderId: string): Promise<
     payment = toPaymentView(paymentRow, eventRows ?? []);
   }
 
-  return toOrderView(data, payment);
+  const reservations = reservationResponse.data ?? [];
+  const reservation = reservations.length ? {
+    status: reservations.some((item) => item.status === "active")
+      ? "active"
+      : reservations.every((item) => item.status === "completed")
+        ? "completed"
+        : "released",
+    expiresAt: reservations[0].expires_at,
+  } satisfies InventoryReservationView : null;
+
+  return toOrderView(data, payment, reservation);
 }
 
 export async function getOrdersForUser(userId: string): Promise<OrderListItem[]> {

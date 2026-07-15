@@ -123,6 +123,10 @@ export async function processMockPaymentWebhook(rawBody: string, signature: stri
       throw new MockPaymentError(409, "Webhook 事件識別碼與既有付款事件衝突。");
     case "transaction_conflict":
       throw new MockPaymentError(409, "此訂單已有另一筆模擬交易結果。");
+    case "reservation_unavailable":
+      throw new MockPaymentError(409, "此訂單的庫存保留已失效，無法完成付款。");
+    case "insufficient_stock":
+      throw new MockPaymentError(409, "付款時庫存不足，請重新建立訂單。");
     case "invalid_input":
       throw new MockPaymentError(400, "模擬付款 Webhook 資料不正確。");
     default:

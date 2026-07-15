@@ -73,6 +73,12 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
             <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusTone(paymentStatus)}`}>{paymentStatusLabel(paymentStatus)}</span>
           </div>
           <p className="mt-3 text-sm text-stone-600">運送方式：{order.shippingMethodName}</p>
+          {order.reservation && (
+            <p className="mt-3 text-xs leading-5 text-stone-500">
+              庫存保留：{reservationLabel(order.reservation.status)}
+              {order.reservation.status === "active" && `（保留至 ${dateTime.format(new Date(order.reservation.expiresAt))}）`}
+            </p>
+          )}
           {order.payment && (
             <div className="mt-3 space-y-1 text-xs leading-5 text-stone-500">
               <p className="break-all">模擬交易編號：{order.payment.transactionId}</p>
@@ -108,6 +114,12 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
       ) : null}
     </div>
   );
+}
+
+function reservationLabel(status: "active" | "completed" | "released"): string {
+  if (status === "active") return "已保留，尚未扣減實際庫存";
+  if (status === "completed") return "付款成功後已完成扣庫存";
+  return "已釋放，未扣減實際庫存";
 }
 
 function orderBannerTitle(status: OrderStatus): string {

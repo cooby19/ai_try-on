@@ -30,6 +30,11 @@ interface CartDatabaseRow {
 
 type VariantDatabaseRow = CartDatabaseRow["product_variants"];
 
+interface AvailableInventoryRow {
+  variant_id: string;
+  available_quantity: number | string;
+}
+
 interface CartRpcResult {
   status?: string;
   quantity?: number;
@@ -50,17 +55,17 @@ export function emptyCart(notices: string[] = []): CartView {
   return { items: [], itemCount: 0, subtotal: 0, notices };
 }
 
-function unavailableReason(variant: VariantDatabaseRow): CartUnavailableReason | null {
+function unavailableReason(variant: VariantDatabaseRow, availableQuantity: number): CartUnavailableReason | null {
   if (!variant.products.is_active) return "product_inactive";
   if (!variant.is_active) return "variant_inactive";
-  if (Number(variant.stock_quantity) < 1) return "out_of_stock";
+  if (availableQuantity < 1) return "out_of_stock";
   return null;
 }
 
-function toCartItem(variant: VariantDatabaseRow, quantity: number): CartItemView {
+function toCartItem(variant: VariantDatabaseRow, quantity: number, availableQuantity: number): CartItemView {
   const unitPrice = Number(variant.products.price);
-  const maxQuantity = Math.min(99, Math.max(0, Number(variant.stock_quantity)));
-  const reason = unavailableReason(variant);
+  const maxQuantity = Math.min(99, Math.max(0, availableQuantity));
+  const reason = unavailableReason(variant, availableQuantity);
   return {
     variantId: variant.id,
     productId: variant.product_id,
@@ -74,6 +79,18 @@ function toCartItem(variant: VariantDatabaseRow, quantity: number): CartItemView
     unavailableReason: reason,
     lineSubtotal: reason === null ? unitPrice * quantity : 0,
   };
+}
+
+async function getAvailableInventory(variantIds: string[]): Promise<Map<string, number>> {
+  if (!variantIds.length) return new Map();
+  const { data, error } = await getSupabaseAdmin().rpc("get_available_inventory", {
+    p_variant_ids: variantIds,
+  });
+  if (error) throw new CartError(500, `可售庫存讀取失敗：${error.message}`);
+  return new Map((data as AvailableInventoryRow[] | null ?? []).map((row) => [
+    row.variant_id,
+    Math.max(0, Number(row.available_quantity)),
+  ]));
 }
 
 export function buildCartView(items: CartItemView[], notices: string[] = []): CartView {
@@ -122,10 +139,12 @@ export async function getCartView(userId: string, notices: string[] = []): Promi
     .returns<CartDatabaseRow[]>();
   if (error) throw new CartError(500, `購物車讀取失敗：${error.message}`);
 
-  return buildCartView(
-    (data ?? []).map((row) => toCartItem(row.product_variants, Number(row.quantity))),
-    notices
-  );
+  const availableByVariant = await getAvailableInventory((data ?? []).map((row) => row.product_variants.id));
+  return buildCartView((data ?? []).map((row) => toCartItem(
+    row.product_variants,
+    Number(row.quantity),
+    availableByVariant.get(row.product_variants.id) ?? 0
+  )), notices);
 }
 
 export async function resolveGuestCart(items: LocalCartItem[]): Promise<CartView> {
@@ -143,6 +162,7 @@ export async function resolveGuestCart(items: LocalCartItem[]): Promise<CartView
   if (error) throw new CartError(500, `商品資料讀取失敗：${error.message}`);
 
   const variants = new Map((data ?? []).map((variant) => [variant.id, variant]));
+  const availableByVariant = await getAvailableInventory([...variants.keys()]);
   const notices: string[] = [];
   const viewItems: CartItemView[] = [];
   for (const item of items) {
@@ -151,10 +171,11 @@ export async function resolveGuestCart(items: LocalCartItem[]): Promise<CartView
       notices.push("一筆不存在的商品已從本機購物車略過。");
       continue;
     }
-    const maxQuantity = Math.min(99, Math.max(0, Number(variant.stock_quantity)));
+    const availableQuantity = availableByVariant.get(variant.id) ?? 0;
+    const maxQuantity = Math.min(99, Math.max(0, availableQuantity));
     const quantity = maxQuantity > 0 ? Math.min(item.quantity, maxQuantity) : item.quantity;
     if (quantity !== item.quantity) notices.push(`${variant.products.name}（${variant.size}）已依庫存調整數量。`);
-    viewItems.push(toCartItem(variant, quantity));
+    viewItems.push(toCartItem(variant, quantity, availableQuantity));
   }
   return buildCartView(viewItems, notices);
 }
