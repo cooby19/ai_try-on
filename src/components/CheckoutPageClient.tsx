@@ -116,7 +116,7 @@ export default function CheckoutPageClient() {
       const body = (await response.json().catch(() => null)) as { orderId?: string; message?: string } | null;
       if (!response.ok || !body?.orderId) throw new Error(body?.message ?? "訂單建立失敗，請稍後再試。" );
       await refresh();
-      router.replace(`/orders/${body.orderId}`);
+      router.replace(`/orders/${body.orderId}/payment`);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "訂單建立失敗，請稍後再試。" );
     } finally {
@@ -226,7 +226,7 @@ export default function CheckoutPageClient() {
             <div className="flex justify-between border-t border-stone-200 pt-3 text-base font-semibold"><span>應付總額</span><span>{currency.format(total)}</span></div>
           </div>
           <button type="submit" disabled={submitting || !shippingMethods.length} className="mt-5 w-full rounded-lg bg-stone-900 px-4 py-3 text-sm font-medium text-white hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-50">{submitting ? "建立訂單中…" : "確認建立待付款訂單"}</button>
-          <p className="mt-3 text-xs leading-5 text-stone-500">送出後將以伺服器的最新價格與庫存建立訂單；本版本尚未串接付款。</p>
+          <p className="mt-3 text-xs leading-5 text-stone-500">送出後將以伺服器的最新價格與庫存建立訂單，接著前往 Mock 模擬付款；不會發生實際扣款。</p>
         </aside>
       </div>
     </form>

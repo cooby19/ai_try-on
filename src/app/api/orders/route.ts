@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { errorMessage, errorStatus } from "@/lib/http";
-import { createOrderFromCart } from "@/lib/orders";
+import { createOrderFromCart, getOrdersForUser } from "@/lib/orders";
 import { requireUser } from "@/lib/user";
+
+export async function GET() {
+  try {
+    const userId = (await requireUser()).id;
+    return NextResponse.json(await getOrdersForUser(userId));
+  } catch (error) {
+    return NextResponse.json({ status: "failed", message: errorMessage(error) }, { status: errorStatus(error) });
+  }
+}
 
 export async function POST(request: Request) {
   try {

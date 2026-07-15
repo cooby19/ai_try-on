@@ -1,6 +1,6 @@
-# AI 虛擬試衣 V0.5
+# AI 虛擬試衣 V0.7
 
-使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On API 產生試穿預覽圖。V0.5 加入尺寸庫存與真實購物車：訪客可先保存在瀏覽器，登入後會合併至帳號並跨裝置同步。
+使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On API 產生試穿預覽圖。V0.7 加入結帳、Mock 模擬付款、付款結果 Webhook 與歷史訂單查詢；模擬金流不會連線第三方支付或進行實際扣款。
 
 ## 技術架構
 
@@ -30,6 +30,8 @@ npm install
    - `005_supabase_auth_users.sql`（Supabase Auth 使用者同步、正式會員外鍵、移除匿名額度入口；V0.2 必跑）
    - `006_account_deletion_requests.sql`（帳戶刪除申請、pending 唯一限制與 RLS；V0.4 必跑）
    - `007_persistent_cart.sql`（商品尺寸／庫存、帳號購物車、冪等訪客合併 RPC；V0.5 必跑）
+   - `008_checkout_orders.sql`（地址簿、運送方式、原子結帳與待付款訂單；V0.6 必跑）
+   - `009_mock_payments_and_order_history.sql`（Mock 付款、Webhook 冪等事件與訂單付款狀態；V0.7 必跑）
 
 ### 3. 設定環境變數
 
@@ -45,6 +47,7 @@ cp .env.local.example .env.local
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | publishable key（可放前端；不是 service role） |
 | `SUPABASE_URL` | 後端管理 client 使用的專案 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role key（**只在後端使用，不會進前端 bundle**） |
+| `MOCK_PAYMENT_WEBHOOK_SECRET` | 至少 32 字元的隨機值；僅供後端驗證 Mock Webhook，並非真實金流憑證 |
 | `VTO_PROVIDER` | `fashn`（預設）、`fashn-max` 或僅供流程展示的 `mock` |
 | `FASHN_API_KEY` | 只有用 `fashn` 時需要 |
 | `PLATFORM_DAILY_BUDGET_USD` | 每日可預留的 AI 成本上限（USD） |
@@ -131,6 +134,18 @@ npm run dev
 | DELETE | `/api/cart/items/[variantId]` | 移除本人購物車內指定規格 |
 | POST | `/api/cart/merge` | 將訪客購物車冪等合併至登入帳號 |
 | POST | `/api/cart/resolve` | 依資料庫目前價格與庫存解析訪客購物車，不持久化 |
+| GET | `/api/orders` | 取得目前登入者的歷史訂單與付款狀態 |
+| POST | `/api/orders` | 從目前登入者的購物車建立待付款訂單 |
+| POST | `/api/orders/[orderId]/mock-payment` | 為本人的待付款訂單模擬成功／失敗／取消／逾期 |
+| POST | `/api/payments/mock/webhook` | 接收具 HMAC 簽章的 Mock 付款結果並冪等更新訂單 |
+
+## V0.7 Mock 付款資料流
+
+1. 結帳以資料庫交易建立 `pending_payment` 訂單，完成後導向 `/orders/[orderId]/payment`。
+2. 使用者在 Sandbox 選擇模擬結果；後端產生不可由前端指定的交易編號、事件 ID 與 HMAC 簽章。
+3. Webhook 共用處理器驗證簽章與 payload，再由單一 Postgres RPC 鎖定訂單、記錄事件並更新付款／訂單狀態。
+4. 相同 `event_id` 重送只回傳既有結果；終態之後晚到的不同事件會保留稽核紀錄，但不覆寫成功或其他既有結果。
+5. `/orders` 與 `/orders/[orderId]` 都先驗證 Supabase Auth 使用者，後端查詢同時限制 `user_id`；未登入者會被導向登入。
 
 ## V0.5 購物車資料流
 
@@ -194,7 +209,7 @@ src/
 │   ├── page.tsx        # 商品列表
 │   └── products/[id]/  # 商品頁
 └── components/         # 試穿元件、CartProvider、購物車頁與加入按鈕
-supabase/migrations/               # 001–006 既有功能；007 真實購物車
+supabase/migrations/               # 001–009：核心資料、購物車、結帳與 Mock 金流
 ```
 
 ## 未來擴充（刻意不在第一版做）
