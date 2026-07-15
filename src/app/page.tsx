@@ -14,6 +14,7 @@ export default async function HomePage() {
   const { data: products, error } = await supabase
     .from("products")
     .select("*")
+    .eq("is_active", true)
     .order("created_at")
     .returns<Product[]>();
 
@@ -68,10 +69,7 @@ function SetupGuide({ reason }: { reason: string }) {
           複製 <span className="font-mono">.env.local.example</span> 為{" "}
           <span className="font-mono">.env.local</span>，填入專案的 URL 與 service role key
         </li>
-        <li>
-          在 Supabase Dashboard 的 SQL Editor 執行{" "}
-          <span className="font-mono">supabase/migrations/001_init.sql</span>
-        </li>
+        <li>在 Supabase Dashboard 的 SQL Editor 依序執行 migrations 001～008</li>
         <li>重新啟動 dev server</li>
       </ol>
       <p className="mt-4 text-stone-500">詳細步驟請見專案 README.md。</p>

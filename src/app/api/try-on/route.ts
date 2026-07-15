@@ -46,6 +46,7 @@ export async function POST(req: Request) {
       .from("products")
       .select("*")
       .eq("id", body.productId)
+      .eq("is_active", true)
       .single<Product>();
     if (!product) return jsonError(404, "找不到這個商品，請重新整理頁面。");
 

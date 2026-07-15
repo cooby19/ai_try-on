@@ -1,6 +1,6 @@
-# AI 虛擬試衣 MVP
+# AI 虛擬試衣 V0.5
 
-使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On API 產生「只替換上衣、盡量保留人物與背景」的試穿預覽圖。內建生成次數限制、回饋紀錄與成本控管。
+使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On API 產生試穿預覽圖。V0.5 加入尺寸庫存與真實購物車：訪客可先保存在瀏覽器，登入後會合併至帳號並跨裝置同步。
 
 ## 技術架構
 
@@ -29,6 +29,7 @@ npm install
    - `004_secure_anonymous_sessions.sql`（安全匿名 session、來源額度與平台預算熔斷；既有專案必跑）
    - `005_supabase_auth_users.sql`（Supabase Auth 使用者同步、正式會員外鍵、移除匿名額度入口；V0.2 必跑）
    - `006_account_deletion_requests.sql`（帳戶刪除申請、pending 唯一限制與 RLS；V0.4 必跑）
+   - `007_persistent_cart.sql`（商品尺寸／庫存、帳號購物車、冪等訪客合併 RPC；V0.5 必跑）
 
 ### 3. 設定環境變數
 
@@ -124,11 +125,27 @@ npm run dev
 | POST | `/api/feedback` | 滿意 / 不滿意回饋 |
 | GET | `/api/quota?productId=` | 查詢剩餘額度 |
 | POST | `/api/account/deletion-request` | 為目前登入者建立帳戶刪除申請（不直接刪帳） |
+| GET | `/api/cart` | 取得目前登入帳號的資料庫購物車 |
+| POST | `/api/cart/items` | 將指定尺寸規格加入登入帳號購物車 |
+| PATCH | `/api/cart/items/[variantId]` | 更新本人購物車內指定規格的數量 |
+| DELETE | `/api/cart/items/[variantId]` | 移除本人購物車內指定規格 |
+| POST | `/api/cart/merge` | 將訪客購物車冪等合併至登入帳號 |
+| POST | `/api/cart/resolve` | 依資料庫目前價格與庫存解析訪客購物車，不持久化 |
+
+## V0.5 購物車資料流
+
+- 未登入：localStorage 只保存 `guestCartId`、尺寸規格 ID 與數量；商品名稱、價格、圖片、庫存與總額每次由 `/api/cart/resolve` 重新取得。
+- 登入：頁面啟動時把訪客品項送到 `/api/cart/merge`。資料庫以 `user_id + guestCartId` 記錄已處理批次，即使回應途中斷線再重送，也不會重複累加。
+- 已登入操作：加入、更新、移除都先用 Supabase Auth session 取得可信 `user.id`，前端不能指定其他帳號；API 回傳完整權威購物車後才更新畫面。
+- 跨裝置：購物車綁定帳號存在 Supabase；每次載入、操作完成及瀏覽器視窗重新取得焦點時刷新。V0.5 不啟用即時推播。
+- 庫存：每個尺寸最多 99 件且不得超過實際庫存。庫存下降時會下修仍可售品項；缺貨或下架品項保留並標示，但不計入總額。
 
 ## 隱私設計
 
 - 人物照與結果圖存放在**私有** bucket，前端只拿 1 小時有效的 signed URL
 - 所有上傳、額度、生成、輪詢、回饋與刪除 API 都先驗證 Supabase Auth session，並只用目前登入者的 `auth.users.id` 存取資料
+- 登入購物車 API 同樣不接受前端 `user_id`；RLS 不提供 anon/authenticated policy，所有 DB 操作只由後端 service role 執行
+- 購物車總額只使用資料庫當下價格計算，localStorage 或請求內偽造的價格欄位不會被採用
 - 未登入仍可瀏覽商品；AI 試穿與會員額度不提供匿名模式，既有匿名測試資料不搬移也不再被流程使用
 - 原始人物照以綁定隨機 `.upload` path 的 Supabase signed URL 直傳；後端以 10 分鐘 HMAC 完成憑證核對使用者、path、MIME 與 bytes，驗證成功後才建立正式 `.jpg`
 - Supabase signed upload URL 官方固定約 2 小時且不能自訂 TTL；以 `upsert=false`、不可猜 path、8MiB/MIME bucket 限制、完成後的 1-byte path lock 與「正式 `.jpg` 才能進 AI」降低風險
@@ -147,6 +164,16 @@ npm run dev
 4. 換不同商品湊滿當日 3 次 → 再生成會被「每日上限」擋下
 5. 約 4MB、8MB 圖片可直傳；txt 或超過 8MB 的檔案會在送出前得到可操作的錯誤訊息
 
+## 購物車跨裝置驗證
+
+1. 在未登入瀏覽器選擇商品尺寸並加入購物車；重新整理 `/cart`，內容應保留。
+2. 登入前先讓同一帳號在資料庫購物車擁有相同尺寸；登入後兩邊數量應相加，但不得超過該尺寸庫存或 99。
+3. 用另一個瀏覽器或裝置登入同一帳號，開啟 `/cart`，應看到相同品項、尺寸與數量。
+4. 在第二裝置改數量，回第一裝置重新聚焦視窗，應自動取得更新後資料。
+5. 改登入另一個帳號，確認購物車內容完全隔離。
+6. 在 Supabase 將規格庫存改小、改為 0，或將商品／規格 `is_active` 設為 false；重新載入後應分別下修數量或標示不可購買，且不可售品項不計入總額。
+7. 修改 localStorage 加入偽造 `price`，重新整理後金額仍應使用資料庫價格。
+
 ## 專案結構
 
 ```
@@ -161,12 +188,13 @@ src/
 │   ├── supabase/       # browser/server/proxy SSR Auth clients
 │   └── images.ts       # 圖片載入/轉檔工具
 ├── app/
-│   ├── api/            # upload / try-on / feedback / quota / account deletion request
+│   ├── api/            # upload / try-on / feedback / quota / account / cart
 │   ├── account/        # 帳戶中心（基本資料、試穿、隱私、危險操作）
+│   ├── cart/           # 獨立購物車頁
 │   ├── page.tsx        # 商品列表
 │   └── products/[id]/  # 商品頁
-└── components/         # TryOnLauncher（modal）/ TryOnResult / AddToCartButton
-supabase/migrations/               # 001–005 基礎與 Auth；006 帳戶刪除申請
+└── components/         # 試穿元件、CartProvider、購物車頁與加入按鈕
+supabase/migrations/               # 001–006 既有功能；007 真實購物車
 ```
 
 ## 未來擴充（刻意不在第一版做）

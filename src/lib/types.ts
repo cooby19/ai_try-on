@@ -72,6 +72,51 @@ export interface CartView {
   notices: string[];
 }
 
+export interface AddressBookEntry {
+  id: string;
+  label: string;
+  recipientName: string;
+  recipientPhone: string;
+  recipientAddress: string;
+  updatedAt: string;
+}
+
+export interface ShippingMethod {
+  code: string;
+  name: string;
+  fee: number;
+}
+
+export type OrderStatus = "pending_payment" | "paid" | "cancelled";
+
+export interface OrderItemView {
+  id: string;
+  productId: string;
+  variantId: string;
+  productName: string;
+  variantSize: string;
+  imageUrl: string;
+  unitPrice: number;
+  quantity: number;
+  lineSubtotal: number;
+}
+
+export interface OrderView {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  recipientName: string;
+  recipientPhone: string;
+  recipientAddress: string;
+  shippingMethodCode: string;
+  shippingMethodName: string;
+  shippingFee: number;
+  subtotal: number;
+  total: number;
+  createdAt: string;
+  items: OrderItemView[];
+}
+
 export interface TryOnJob {
   id: string;
   user_id: string;
