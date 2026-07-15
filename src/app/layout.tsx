@@ -24,7 +24,7 @@ export default async function RootLayout({
           <header className="border-b border-stone-200 bg-white">
             <div className="mx-auto max-w-5xl px-4 py-4 flex items-center justify-between">
               <Link href="/" className="text-lg font-semibold tracking-tight">
-                樣衣間 <span className="text-stone-400 text-sm font-normal">AI 虛擬試衣 V0.5</span>
+                樣衣間 <span className="text-stone-400 text-sm font-normal">AI 虛擬試衣 V0.6</span>
               </Link>
               <div className="flex items-center gap-1">
                 <CartLink />
@@ -36,6 +36,9 @@ export default async function RootLayout({
                     <div className="absolute right-0 z-40 mt-2 w-44 overflow-hidden rounded-lg border border-stone-200 bg-white py-1 shadow-lg">
                       <Link href="/account" className="block px-4 py-2 text-sm hover:bg-stone-50">
                         帳戶設定
+                      </Link>
+                      <Link href="/account/addresses" className="block px-4 py-2 text-sm hover:bg-stone-50">
+                        地址簿
                       </Link>
                       <form action={signOut}>
                         <button type="submit" className="block w-full px-4 py-2 text-left text-sm hover:bg-stone-50">

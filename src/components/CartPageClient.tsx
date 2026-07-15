@@ -94,6 +94,12 @@ export default function CartPageClient() {
               <span className="text-xl font-semibold">{currency.format(cart.subtotal)}</span>
             </div>
             <p className="mt-3 text-xs leading-5 text-stone-500">價格與庫存以伺服器目前資料為準；缺貨或下架商品不列入總額。</p>
+            <Link
+              href={isAuthenticated ? "/checkout" : "/login?returnTo=%2Fcheckout"}
+              className="mt-5 block w-full rounded-lg bg-stone-900 px-4 py-3 text-center text-sm font-medium text-white hover:bg-stone-700"
+            >
+              {isAuthenticated ? "前往結帳" : "登入後前往結帳"}
+            </Link>
           </aside>
         </div>
       )}
