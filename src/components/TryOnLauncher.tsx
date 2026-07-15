@@ -4,7 +4,7 @@
 // 前端只呼叫自家後端 API，完全接觸不到 AI API key。
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import type { Product, TryOnJobView, TryOnModel } from "@/lib/types";
+import type { Product, ProductVariant, TryOnJobView, TryOnModel } from "@/lib/types";
 import { validateFileMeta } from "@/lib/upload-constraints";
 import { uploadFileToSignedUrl } from "@/lib/direct-upload";
 import TryOnResult from "./TryOnResult";
@@ -24,9 +24,11 @@ interface Quota {
 
 export default function TryOnLauncher({
   product,
+  variants,
   isAuthenticated,
 }: {
   product: Product;
+  variants: ProductVariant[];
   isAuthenticated: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -346,6 +348,7 @@ export default function TryOnLauncher({
               <TryOnResult
                 job={job}
                 product={product}
+                variants={variants}
                 personPreview={job.personImageUrl ?? personPreview}
                 canRegenerate={
                   (quota?.remainingToday ?? 0) > 0 && (quota?.remainingRetriesForProduct ?? 0) > 0
