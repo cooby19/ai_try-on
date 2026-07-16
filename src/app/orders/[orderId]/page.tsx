@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { orderStatusLabel, paymentStatusLabel, statusTone } from "@/lib/order-status";
 import { getOrderForUser } from "@/lib/orders";
+import { getRefundRequestsForOrder } from "@/lib/order-operations";
 import { getCurrentUser } from "@/lib/user";
 import type { OrderStatus } from "@/lib/types";
+import OrderOperationPanel from "@/components/OrderOperationPanel";
 
 const currency = new Intl.NumberFormat("zh-TW", { style: "currency", currency: "TWD", maximumFractionDigits: 0 });
 const dateTime = new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeStyle: "short" });
@@ -15,7 +17,10 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
   const { orderId } = await params;
   const user = await getCurrentUser();
   if (!user) redirect(`/login?returnTo=${encodeURIComponent(`/orders/${orderId}`)}`);
-  const order = await getOrderForUser(user.id, orderId);
+  const [order, refundRequests] = await Promise.all([
+    getOrderForUser(user.id, orderId),
+    getRefundRequestsForOrder(user.id, orderId),
+  ]);
   if (!order) notFound();
 
   const paymentStatus = order.payment?.status ?? "pending";
@@ -112,6 +117,8 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
           </ul>
         </section>
       ) : null}
+
+      <OrderOperationPanel orderId={order.id} orderStatus={order.status} requests={refundRequests} />
     </div>
   );
 }
@@ -127,7 +134,13 @@ function orderBannerTitle(status: OrderStatus): string {
     case "pending_payment": return "訂單已成立，等待付款";
     case "processing": return "模擬付款成功";
     case "payment_failed": return "模擬付款失敗";
+    case "cancellation_requested": return "取消申請審核中";
     case "cancelled": return "訂單已取消";
+    case "shipped": return "訂單已出貨";
+    case "completed": return "訂單已完成";
+    case "refund_pending": return "退款處理中";
+    case "partially_refunded": return "訂單已部分退款";
+    case "refunded": return "訂單已退款";
     case "expired": return "付款已逾期";
   }
 }
@@ -137,7 +150,13 @@ function orderBannerMessage(status: OrderStatus): string {
     case "pending_payment": return "可進入 Mock 付款頁選擇測試結果，不會實際扣款。";
     case "processing": return "訂單已正確更新為處理中。";
     case "payment_failed": return "系統已保存失敗結果與原因。";
+    case "cancellation_requested": return "營運人員將確認出貨與退款狀態。";
     case "cancelled": return "系統已保存取消結果。";
+    case "shipped": return "商品正在配送途中。";
+    case "completed": return "如需售後協助，可在期限內申請退款或聯絡客服。";
+    case "refund_pending": return "退款已核准或正在由金流處理。";
+    case "partially_refunded": return "部分款項已退回原付款方式。";
+    case "refunded": return "款項已退回原付款方式。";
     case "expired": return "系統已保存逾期結果。";
   }
 }

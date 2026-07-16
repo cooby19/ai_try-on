@@ -11,7 +11,7 @@ import type {
 interface AccountJobRow {
   id: string;
   product_id: string;
-  person_image_url: string;
+  person_image_url: string | null;
   result_image_url: string | null;
   status: JobStatus;
   created_at: string;

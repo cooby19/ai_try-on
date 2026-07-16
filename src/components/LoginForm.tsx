@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 function authErrorMessage(message: string): string {
   const value = message.toLowerCase();
@@ -44,13 +43,12 @@ export default function LoginForm({
     setError(null);
     setNotice(null);
     try {
-      const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { shouldCreateUser: true },
+      const response = await fetch("/api/auth/otp/request", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: email.trim() }),
       });
-      if (authError) {
-        setError(authErrorMessage(authError.message));
+      const body = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        setError(body.message ?? authErrorMessage("failed"));
       } else {
         setCodeSent(true);
         setNotice("6 位數驗證碼已寄出，請查看信箱；若沒看到，也請檢查垃圾郵件。");
@@ -68,14 +66,12 @@ export default function LoginForm({
     setBusy("verify");
     setError(null);
     try {
-      const supabase = createClient();
-      const { error: authError } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token: otp.trim(),
-        type: "email",
+      const response = await fetch("/api/auth/otp/verify", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: email.trim(), token: otp.trim() }),
       });
-      if (authError) {
-        setError(authErrorMessage(authError.message));
+      const body = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        setError(body.message ?? authErrorMessage("invalid"));
         setBusy(null);
         return;
       }
