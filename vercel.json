@@ -1,6 +1,6 @@
 {
   "crons": [
-    { "path": "/api/internal/notifications/dispatch", "schedule": "*/5 * * * *" },
+    { "path": "/api/internal/notifications/dispatch", "schedule": "0 4 * * *" },
     { "path": "/api/internal/retention/run", "schedule": "15 3 * * *" }
   ]
 }
