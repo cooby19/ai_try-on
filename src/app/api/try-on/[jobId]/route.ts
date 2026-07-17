@@ -39,6 +39,10 @@ export async function GET(_req: Request, { params }: RouteParams) {
 
       let ctx: VTOSubmitInput | undefined;
       if (provider.requiresImagesOnPoll) {
+        if (!job.person_image_url) {
+          await updateJobStatus(job.id, { status: "failed", error_message: "人物照已依資料保留政策清除。" });
+          return jsonError(409, "此試穿任務的原始照片已清除，無法繼續處理。");
+        }
         const supabase = getSupabaseAdmin();
         const { data: personFile } = await supabase.storage
           .from(PERSON_BUCKET)

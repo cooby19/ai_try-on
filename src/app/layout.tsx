@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { signOut } from "@/app/auth/actions";
 import { getCurrentUser, userDisplayName } from "@/lib/user";
+import { getStaffRoles } from "@/lib/staff";
 import CartProvider from "@/components/CartProvider";
 import CartLink from "@/components/CartLink";
 import "./globals.css";
@@ -17,6 +18,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await getCurrentUser();
+  const staffRoles = user ? await getStaffRoles(user.id) : [];
   return (
     <html lang="zh-TW" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-stone-50 text-stone-900">
@@ -24,7 +26,7 @@ export default async function RootLayout({
           <header className="border-b border-stone-200 bg-white">
             <div className="mx-auto max-w-5xl px-4 py-4 flex items-center justify-between">
               <Link href="/" className="text-lg font-semibold tracking-tight">
-                樣衣間 <span className="text-stone-400 text-sm font-normal">AI 虛擬試衣 V0.7</span>
+                樣衣間 <span className="text-stone-400 text-sm font-normal">AI 虛擬試衣 V1.0</span>
               </Link>
               <div className="flex items-center gap-1">
                 <CartLink />
@@ -43,6 +45,14 @@ export default async function RootLayout({
                       <Link href="/orders" className="block px-4 py-2 text-sm hover:bg-stone-50">
                         我的訂單
                       </Link>
+                      <Link href="/support" className="block px-4 py-2 text-sm hover:bg-stone-50">
+                        客服中心
+                      </Link>
+                      {staffRoles.length > 0 && (
+                        <Link href="/admin" className="block px-4 py-2 text-sm hover:bg-stone-50">
+                          營運後台
+                        </Link>
+                      )}
                       <form action={signOut}>
                         <button type="submit" className="block w-full px-4 py-2 text-left text-sm hover:bg-stone-50">
                           登出

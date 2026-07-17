@@ -56,13 +56,14 @@ interface PaymentRow {
   status: PaymentStatus;
   failure_reason: string | null;
   paid_at: string | null;
+  refunded_amount?: number | string;
   updated_at: string;
 }
 
 interface PaymentEventRow {
   id: string;
   event_id: string;
-  result: Exclude<PaymentStatus, "pending">;
+  result: Extract<PaymentStatus, "succeeded" | "failed" | "cancelled" | "expired">;
   ignored: boolean;
   processed_at: string;
 }
@@ -102,6 +103,7 @@ function toPaymentView(row: PaymentRow, events: PaymentEventRow[]): PaymentView 
     status: row.status,
     failureReason: row.failure_reason,
     paidAt: row.paid_at,
+    refundedAmount: Number(row.refunded_amount ?? 0),
     updatedAt: row.updated_at,
     events: events.map<PaymentEventView>((event) => ({
       id: event.id,
@@ -227,7 +229,7 @@ export async function getOrderForUser(userId: string, orderId: string): Promise<
   const [paymentResponse, reservationResponse] = await Promise.all([
     supabase
       .from("payments")
-      .select("id, order_id, transaction_id, status, failure_reason, paid_at, updated_at")
+      .select("id, order_id, transaction_id, status, failure_reason, paid_at, refunded_amount, updated_at")
       .eq("order_id", data.id)
       .eq("user_id", userId)
       .maybeSingle<PaymentRow>(),

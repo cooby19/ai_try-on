@@ -1,6 +1,8 @@
-# AI 虛擬試衣 V0.7
+# AI 虛擬試衣 V1.0 營運基礎
 
-使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On API 產生試穿預覽圖。V0.7 加入結帳、Mock 模擬付款、付款結果 Webhook 與歷史訂單查詢；模擬金流不會連線第三方支付或進行實際扣款。
+使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On API 產生試穿預覽圖。V1.0 加入 Email outbox、取消／退款、客服、風險事件、營運 RBAC、完整稽核與資料保留工作。
+
+> 重要：目前仍只有 Mock Payment。正式環境預設拒絕 Mock；選定並驗證真實金流前，不可對外宣稱可正式收款。完整營運與上線清單見 [docs/V1_OPERATIONS.md](docs/V1_OPERATIONS.md)。
 
 ## 技術架構
 
@@ -33,6 +35,7 @@ npm install
    - `008_checkout_orders.sql`（地址簿、運送方式、原子結帳與待付款訂單；V0.6 必跑）
    - `009_mock_payments_and_order_history.sql`（Mock 付款、Webhook 冪等事件與訂單付款狀態；V0.7 必跑）
    - `010_inventory_reservations.sql`（庫存保留、付款成功才扣庫存、失敗／取消／逾期自動釋放；V0.7 必跑）
+   - `011_v1_operations_security.sql`（Email、取消退款、客服、風險、RBAC、RLS、稽核、資料保留；V1.0 必跑）
 
 ### 3. 設定環境變數
 

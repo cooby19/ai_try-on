@@ -8,7 +8,7 @@ import type { MockPaymentOutcome, OrderStatus, PaymentStatus } from "./types";
 export const MOCK_PAYMENT_SIGNATURE_HEADER = "x-mock-payment-signature";
 const MAX_WEBHOOK_BYTES = 20_000;
 
-type MockWebhookResult = Exclude<PaymentStatus, "pending">;
+type MockWebhookResult = Extract<PaymentStatus, "succeeded" | "failed" | "cancelled" | "expired">;
 
 export interface MockPaymentWebhookPayload {
   eventId: string;
@@ -39,6 +39,10 @@ export class MockPaymentError extends AppError {
     super(status, message);
     this.name = "MockPaymentError";
   }
+}
+
+export function isMockPaymentEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.ENABLE_MOCK_PAYMENTS_IN_PRODUCTION === "true";
 }
 
 function webhookSecret(): string {
@@ -87,6 +91,9 @@ export function buildMockPaymentWebhook(orderId: string, outcome: MockPaymentOut
 }
 
 export async function processMockPaymentWebhook(rawBody: string, signature: string | null): Promise<MockPaymentResult> {
+  if (!isMockPaymentEnabled()) {
+    throw new MockPaymentError(403, "正式環境已停用模擬付款 Webhook。");
+  }
   if (Buffer.byteLength(rawBody, "utf8") > MAX_WEBHOOK_BYTES) {
     throw new MockPaymentError(413, "模擬付款 Webhook 內容過大。");
   }
@@ -139,6 +146,9 @@ export async function simulateMockPaymentForUser(
   orderId: string,
   outcome: unknown
 ): Promise<MockPaymentResult> {
+  if (!isMockPaymentEnabled()) {
+    throw new MockPaymentError(403, "正式環境已停用模擬付款；請先完成真實金流串接。");
+  }
   if (!isUuid(orderId) || !isMockPaymentOutcome(outcome)) {
     throw new MockPaymentError(400, "模擬付款選項不正確。");
   }

@@ -91,10 +91,24 @@ export type OrderStatus =
   | "pending_payment"
   | "processing"
   | "payment_failed"
+  | "cancellation_requested"
   | "cancelled"
+  | "shipped"
+  | "completed"
+  | "refund_pending"
+  | "partially_refunded"
+  | "refunded"
   | "expired";
 
-export type PaymentStatus = "pending" | "succeeded" | "failed" | "cancelled" | "expired";
+export type PaymentStatus =
+  | "pending"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "expired"
+  | "refund_pending"
+  | "partially_refunded"
+  | "refunded";
 export type MockPaymentOutcome = "success" | "failure" | "cancelled" | "expired";
 export type InventoryReservationStatus = "active" | "completed" | "released";
 
@@ -136,7 +150,7 @@ export interface InventoryReservationView {
 export interface PaymentEventView {
   id: string;
   eventId: string;
-  result: Exclude<PaymentStatus, "pending">;
+  result: Extract<PaymentStatus, "succeeded" | "failed" | "cancelled" | "expired">;
   ignored: boolean;
   processedAt: string;
 }
@@ -147,8 +161,55 @@ export interface PaymentView {
   status: PaymentStatus;
   failureReason: string | null;
   paidAt: string | null;
+  refundedAmount: number;
   updatedAt: string;
   events: PaymentEventView[];
+}
+
+export type RefundRequestStatus =
+  | "requested"
+  | "reviewing"
+  | "approved"
+  | "processing"
+  | "succeeded"
+  | "rejected"
+  | "failed"
+  | "cancelled";
+
+export interface RefundRequestView {
+  id: string;
+  orderId: string;
+  requestType: "cancellation" | "refund";
+  status: RefundRequestStatus;
+  reason: string;
+  requestedAmount: number;
+  approvedAmount: number | null;
+  reviewNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SupportTicketStatus = "open" | "waiting_customer" | "in_progress" | "resolved" | "closed";
+export type SupportCategory = "order" | "payment" | "refund" | "try_on" | "privacy" | "account" | "other";
+
+export interface SupportMessageView {
+  id: string;
+  senderRole: "customer" | "staff" | "system";
+  body: string;
+  createdAt: string;
+}
+
+export interface SupportTicketView {
+  id: string;
+  ticketNumber: string;
+  orderId: string | null;
+  category: SupportCategory;
+  subject: string;
+  status: SupportTicketStatus;
+  priority: "low" | "normal" | "high" | "urgent";
+  lastActivityAt: string;
+  createdAt: string;
+  messages: SupportMessageView[];
 }
 
 export interface OrderListItem {
@@ -165,7 +226,7 @@ export interface TryOnJob {
   user_id: string;
   source_hash: string | null; // 舊匿名測試資料欄位；正式會員流程不再讀寫
   product_id: string;
-  person_image_url: string; // Storage 路徑，不是公開 URL
+  person_image_url: string | null; // Storage 路徑，不是公開 URL；保留政策清除後為 null
   garment_image_url: string;
   result_image_url: string | null; // Storage 路徑，不是公開 URL
   provider: string;
