@@ -7,6 +7,7 @@ import { AppError } from "@/lib/http";
 import { DELETE, GET } from "@/app/api/try-on/[jobId]/route";
 import type { TryOnJob } from "@/lib/types";
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/user", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({
   getSupabaseAdmin: vi.fn(),
