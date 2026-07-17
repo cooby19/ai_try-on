@@ -1,0 +1,662 @@
+{
+  "availability": {
+    "actualProviderCost": false,
+    "databaseSize": true,
+    "jobs": true,
+    "relationCounts": true,
+    "relationSizes": true,
+    "requestEvents": false,
+    "storage": true
+  },
+  "cost": {
+    "actualProviderCost": null,
+    "averagePerCreatedJob": 0.060167,
+    "averageSuccessfulJobEstimate": 0.057885,
+    "budgetReservation": 0.915,
+    "byProvider": [
+      {
+        "budgetReservation": 0.765,
+        "jobs": 10,
+        "key": "fashn",
+        "recordedCostEstimate": 0.7525
+      },
+      {
+        "budgetReservation": 0.15,
+        "jobs": 1,
+        "key": "fashn-max",
+        "recordedCostEstimate": 0.15
+      },
+      {
+        "budgetReservation": 0,
+        "jobs": 4,
+        "key": "mock",
+        "recordedCostEstimate": 0
+      }
+    ],
+    "byProviderClass": [
+      {
+        "budgetReservation": 0,
+        "jobs": 4,
+        "key": "mock",
+        "recordedCostEstimate": 0
+      },
+      {
+        "budgetReservation": 0.915,
+        "jobs": 11,
+        "key": "paid-provider",
+        "recordedCostEstimate": 0.9025
+      }
+    ],
+    "byStatus": [
+      {
+        "budgetReservation": 0.1525,
+        "jobs": 2,
+        "key": "failed",
+        "recordedCostEstimate": 0.15
+      },
+      {
+        "budgetReservation": 0.7625,
+        "jobs": 13,
+        "key": "success",
+        "recordedCostEstimate": 0.7525
+      }
+    ],
+    "byUtcDay": [
+      {
+        "budgetReservation": 0.15,
+        "jobs": 3,
+        "key": "2026-07-10",
+        "recordedCostEstimate": 0.15
+      },
+      {
+        "budgetReservation": 0.075,
+        "jobs": 4,
+        "key": "2026-07-11",
+        "recordedCostEstimate": 0.075
+      },
+      {
+        "budgetReservation": 0.4575,
+        "jobs": 5,
+        "key": "2026-07-13",
+        "recordedCostEstimate": 0.45
+      },
+      {
+        "budgetReservation": 0.2325,
+        "jobs": 3,
+        "key": "2026-07-17",
+        "recordedCostEstimate": 0.2275
+      }
+    ],
+    "estimatedCostPerSuccessfulResult": 0.069423,
+    "recordedCostEstimate": 0.9025
+  },
+  "coverage": {
+    "allTimeJobCount": 40,
+    "excludedFromWindow": 25,
+    "windowJobCount": 15
+  },
+  "database": {
+    "allTimeJobCount": 40,
+    "allTimeStatuses": {
+      "failed": 3,
+      "pending": 0,
+      "processing": 3,
+      "success": 34
+    },
+    "configSnapshotCoverage": {
+      "denominator": 40,
+      "numerator": 0,
+      "rate": 0
+    },
+    "idempotencyUsage": {
+      "denominator": 40,
+      "numerator": 0,
+      "rate": 0
+    },
+    "legacyJobCount": 40,
+    "lifecycleFieldCoverage": [
+      {
+        "field": "started_at",
+        "present": 0,
+        "rate": 0,
+        "total": 40
+      },
+      {
+        "field": "provider_submitted_at",
+        "present": 0,
+        "rate": 0,
+        "total": 40
+      },
+      {
+        "field": "completed_at",
+        "present": 0,
+        "rate": 0,
+        "total": 40
+      },
+      {
+        "field": "last_polled_at",
+        "present": 0,
+        "rate": 0,
+        "total": 40
+      }
+    ],
+    "overallSizeBytes": 13634707,
+    "relations": [
+      {
+        "indexBytes": 65536,
+        "name": "public.order_items",
+        "rowCount": 11,
+        "tableBytes": 8192,
+        "totalBytes": 81920
+      },
+      {
+        "indexBytes": 65536,
+        "name": "public.orders",
+        "rowCount": 13,
+        "tableBytes": 8192,
+        "totalBytes": 81920
+      },
+      {
+        "indexBytes": 49152,
+        "name": "public.product_variants",
+        "rowCount": 17,
+        "tableBytes": 8192,
+        "totalBytes": 65536
+      },
+      {
+        "indexBytes": 16384,
+        "name": "public.products",
+        "rowCount": 4,
+        "tableBytes": 8192,
+        "totalBytes": 32768
+      },
+      {
+        "indexBytes": 16384,
+        "name": "public.try_on_feedback",
+        "rowCount": 14,
+        "tableBytes": 8192,
+        "totalBytes": 32768
+      },
+      {
+        "indexBytes": 73728,
+        "name": "public.try_on_jobs",
+        "rowCount": 40,
+        "tableBytes": 32768,
+        "totalBytes": 139264
+      },
+      {
+        "indexBytes": 16384,
+        "name": "public.users",
+        "rowCount": 36,
+        "tableBytes": 8192,
+        "totalBytes": 32768
+      }
+    ],
+    "seedCoverage": {
+      "denominator": 40,
+      "numerator": 0,
+      "rate": 0
+    },
+    "structuredErrorCoverage": {
+      "denominator": 3,
+      "numerator": 0,
+      "rate": 0
+    }
+  },
+  "deterministicRegressionCases": {
+    "failed": 0,
+    "passed": 16,
+    "total": 16
+  },
+  "errors": [
+    {
+      "count": 2,
+      "errorCode": "unclassified",
+      "errorType": "unclassified",
+      "provider": "fashn",
+      "providerHttpStatus": null,
+      "shareOfFailedJobs": 1,
+      "status": "failed"
+    }
+  ],
+  "generatedAt": "2026-07-17T07:15:50.000Z",
+  "latency": [
+    {
+      "postSubmitTerminal": {
+        "averageMs": null,
+        "candidateCount": 15,
+        "excludedCount": 15,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "provider": "all",
+      "status": "all",
+      "submission": {
+        "averageMs": null,
+        "candidateCount": 15,
+        "excludedCount": 15,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "totalTerminal": {
+        "averageMs": null,
+        "candidateCount": 15,
+        "excludedCount": 15,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      }
+    },
+    {
+      "postSubmitTerminal": {
+        "averageMs": null,
+        "candidateCount": 10,
+        "excludedCount": 10,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "provider": "fashn",
+      "status": "all",
+      "submission": {
+        "averageMs": null,
+        "candidateCount": 10,
+        "excludedCount": 10,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "totalTerminal": {
+        "averageMs": null,
+        "candidateCount": 10,
+        "excludedCount": 10,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      }
+    },
+    {
+      "postSubmitTerminal": {
+        "averageMs": null,
+        "candidateCount": 8,
+        "excludedCount": 8,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "provider": "fashn",
+      "status": "success",
+      "submission": {
+        "averageMs": null,
+        "candidateCount": 8,
+        "excludedCount": 8,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "totalTerminal": {
+        "averageMs": null,
+        "candidateCount": 8,
+        "excludedCount": 8,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      }
+    },
+    {
+      "postSubmitTerminal": {
+        "averageMs": null,
+        "candidateCount": 2,
+        "excludedCount": 2,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "provider": "fashn",
+      "status": "failed",
+      "submission": {
+        "averageMs": null,
+        "candidateCount": 2,
+        "excludedCount": 2,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "totalTerminal": {
+        "averageMs": null,
+        "candidateCount": 2,
+        "excludedCount": 2,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      }
+    },
+    {
+      "postSubmitTerminal": {
+        "averageMs": null,
+        "candidateCount": 1,
+        "excludedCount": 1,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "provider": "fashn-max",
+      "status": "all",
+      "submission": {
+        "averageMs": null,
+        "candidateCount": 1,
+        "excludedCount": 1,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "totalTerminal": {
+        "averageMs": null,
+        "candidateCount": 1,
+        "excludedCount": 1,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      }
+    },
+    {
+      "postSubmitTerminal": {
+        "averageMs": null,
+        "candidateCount": 1,
+        "excludedCount": 1,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "provider": "fashn-max",
+      "status": "success",
+      "submission": {
+        "averageMs": null,
+        "candidateCount": 1,
+        "excludedCount": 1,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "totalTerminal": {
+        "averageMs": null,
+        "candidateCount": 1,
+        "excludedCount": 1,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      }
+    },
+    {
+      "postSubmitTerminal": {
+        "averageMs": null,
+        "candidateCount": 4,
+        "excludedCount": 4,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "provider": "mock",
+      "status": "all",
+      "submission": {
+        "averageMs": null,
+        "candidateCount": 4,
+        "excludedCount": 4,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "totalTerminal": {
+        "averageMs": null,
+        "candidateCount": 4,
+        "excludedCount": 4,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      }
+    },
+    {
+      "postSubmitTerminal": {
+        "averageMs": null,
+        "candidateCount": 4,
+        "excludedCount": 4,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "provider": "mock",
+      "status": "success",
+      "submission": {
+        "averageMs": null,
+        "candidateCount": 4,
+        "excludedCount": 4,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      },
+      "totalTerminal": {
+        "averageMs": null,
+        "candidateCount": 4,
+        "excludedCount": 4,
+        "maxMs": null,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "validSampleCount": 0
+      }
+    }
+  ],
+  "limitations": [
+    "固定案例只代表離線 Workflow 回歸結果，不是 production 成功率、延遲或成本。",
+    "post-submit terminal latency 包含輪詢間隔、結果下載、enhancement 與 Storage 寫入，不是純 provider execution time。",
+    "cost_estimate 與 budget_reservation 是程式記錄的估算／預留，不是 provider 實際帳單；pre-submit failure 也可能已有估算值。",
+    "try_on_jobs 不涵蓋建 job 前的 authentication、input validation、product lookup 或 quota rejection。",
+    "Storage 未引用與缺失數字只是 aggregate 候選；.upload 是 raw upload／tombstone，沒有被當作 orphan。"
+  ],
+  "recommendedNextActions": [
+    "Terminal success rate 低於 90%，但失敗尚未分類；先確認新版 structured error 寫入後再定位原因。",
+    "人工複核 Storage 未引用／缺失候選；本報表不會自動刪除任何物件。",
+    "確認 reproducibility migration 已部署，並用新建 job 驗證 config snapshot、seed、生命週期時間與結構化錯誤開始寫入。",
+    "若要涵蓋建 job 前的驗證、授權與 quota 拒絕，需另設 request-level event／log 指標。"
+  ],
+  "schemaVersion": 1,
+  "source": "supabase-api+readonly-sql",
+  "storage": [
+    {
+      "averageKnownObjectBytes": 37866.989,
+      "bucketId": "person-uploads",
+      "formalJpgCount": 79,
+      "missingReferencedObjectCount": 0,
+      "missingSizeMetadataCount": 0,
+      "objectCount": 92,
+      "otherObjectCount": 0,
+      "rawUploadOrTombstoneCount": 13,
+      "referencedKnownBytes": 1466020,
+      "referencedObjectCount": 34,
+      "totalKnownBytes": 3483763,
+      "unreferencedCandidateCount": 45,
+      "unreferencedCandidateKnownBytes": 2017730
+    },
+    {
+      "averageKnownObjectBytes": 59882.212,
+      "bucketId": "try-on-results",
+      "formalJpgCount": 33,
+      "missingReferencedObjectCount": 0,
+      "missingSizeMetadataCount": 0,
+      "objectCount": 33,
+      "otherObjectCount": 0,
+      "rawUploadOrTombstoneCount": 0,
+      "referencedKnownBytes": 1976113,
+      "referencedObjectCount": 33,
+      "totalKnownBytes": 1976113,
+      "unreferencedCandidateCount": 0,
+      "unreferencedCandidateKnownBytes": 0
+    }
+  ],
+  "success": {
+    "byConfigSchemaVersion": [
+      {
+        "created": 15,
+        "failed": 2,
+        "key": "legacy",
+        "pending": 0,
+        "processing": 0,
+        "success": 13,
+        "terminal": 15,
+        "terminalSuccessRate": 0.8666666666666667
+      }
+    ],
+    "byProvider": [
+      {
+        "created": 10,
+        "failed": 2,
+        "key": "fashn",
+        "pending": 0,
+        "processing": 0,
+        "success": 8,
+        "terminal": 10,
+        "terminalSuccessRate": 0.8
+      },
+      {
+        "created": 1,
+        "failed": 0,
+        "key": "fashn-max",
+        "pending": 0,
+        "processing": 0,
+        "success": 1,
+        "terminal": 1,
+        "terminalSuccessRate": 1
+      },
+      {
+        "created": 4,
+        "failed": 0,
+        "key": "mock",
+        "pending": 0,
+        "processing": 0,
+        "success": 4,
+        "terminal": 4,
+        "terminalSuccessRate": 1
+      }
+    ],
+    "byUtcDay": [
+      {
+        "created": 3,
+        "failed": 0,
+        "key": "2026-07-10",
+        "pending": 0,
+        "processing": 0,
+        "success": 3,
+        "terminal": 3,
+        "terminalSuccessRate": 1
+      },
+      {
+        "created": 4,
+        "failed": 0,
+        "key": "2026-07-11",
+        "pending": 0,
+        "processing": 0,
+        "success": 4,
+        "terminal": 4,
+        "terminalSuccessRate": 1
+      },
+      {
+        "created": 5,
+        "failed": 2,
+        "key": "2026-07-13",
+        "pending": 0,
+        "processing": 0,
+        "success": 3,
+        "terminal": 5,
+        "terminalSuccessRate": 0.6
+      },
+      {
+        "created": 3,
+        "failed": 0,
+        "key": "2026-07-17",
+        "pending": 0,
+        "processing": 0,
+        "success": 3,
+        "terminal": 3,
+        "terminalSuccessRate": 1
+      }
+    ],
+    "completionRate": 1,
+    "created": 15,
+    "endToEndSuccessRate": 0.8666666666666667,
+    "nonTerminalAge": {
+      "atLeast120Minutes": 0,
+      "from15To120Minutes": 0,
+      "from5To15Minutes": 0,
+      "invalidOrFutureTimestamp": 0,
+      "timeoutCandidates": 0,
+      "under5Minutes": 0
+    },
+    "statuses": {
+      "failed": 2,
+      "pending": 0,
+      "processing": 0,
+      "success": 13
+    },
+    "terminal": 15,
+    "terminalSuccessRate": 0.8666666666666667
+  },
+  "unavailableReasons": [
+    "沒有 provider billing data：actual provider cost unavailable。",
+    "沒有 request-level event：建 job 前的拒絕 unavailable。"
+  ],
+  "window": {
+    "fromTaipei": "2026-07-10T15:15:50+08:00",
+    "fromUtc": "2026-07-10T07:15:50.000Z",
+    "interval": "[from, to)",
+    "toTaipei": "2026-07-17T15:15:50+08:00",
+    "toUtc": "2026-07-17T07:15:50.000Z"
+  }
+}
