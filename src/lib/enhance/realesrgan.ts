@@ -10,7 +10,8 @@ const REPLICATE_API_BASE = "https://api.replicate.com/v1";
 
 // 釘死 version hash（2026-07 查得的 latest_version），避免上游默默換權重
 // 導致輸出風格漂移；要升級時改這個常數並重新人工驗證幾張結果圖。
-const REAL_ESRGAN_VERSION = "b3ef194191d13140337468c916c2c5b96dd0cb06dffc032a022a31807f6a5ea8";
+export const REAL_ESRGAN_VERSION = "b3ef194191d13140337468c916c2c5b96dd0cb06dffc032a022a31807f6a5ea8";
+export const REAL_ESRGAN_SCALE = 2 as const;
 
 export class RealEsrganEnhancer implements ImageEnhancer {
   enhancerName = "realesrgan";
@@ -43,7 +44,7 @@ export class RealEsrganEnhancer implements ImageEnhancer {
           // Replicate 支援 base64 data URI，不需要提供公開圖片網址（結果圖在私有 bucket）
           image: toBase64DataUri(image, "image/jpeg"),
           // 2×：864×1296 → 1728×2592，銳利度目標接近 Max 的 2k 檔位
-          scale: 2,
+          scale: REAL_ESRGAN_SCALE,
           // 臉部修復刻意不開：效果不可控且非本版目標，留待之後獨立評估
           face_enhance: false,
         },

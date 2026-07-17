@@ -12,6 +12,8 @@ export {
 } from "./upload-constraints";
 export type { ValidationResult } from "./upload-constraints";
 export const MIN_IMAGE_WIDTH = 320; // 太小的圖生成品質會很差
+export const PERSON_IMAGE_PREPROCESSING_VERSION = "person-image-v1" as const;
+export const PERSON_IMAGE_JPEG_QUALITY = 92 as const;
 // 上傳壓縮是整條品質管線的第一關：FASHN tryon-v1.6 的輸出不會超過輸入解析度
 // （上限 864×1296），舊值 1024（規格書建議 768~1024px）在非 3:4 比例的照片上
 // 高度常低於 1296，會逼 v1.6 降解析度輸出。1440 讓 3:4 直幅照高約 1920，
@@ -36,7 +38,7 @@ export async function normalizePersonImage(
       // q88 會先吃掉膚質／髮絲／布料紋理等高頻細節，成為 VTO 輸入品質的瓶頸；
       // q92 保留細節、檔案增幅可控（官方指南建議 q≈95，92 是與流量的折衷）。
       // 維持 JPEG 不改 PNG：照片存 PNG 體積暴增 5~10 倍，且存檔路徑與 contentType 都綁 JPEG。
-      .jpeg({ quality: 92 })
+      .jpeg({ quality: PERSON_IMAGE_JPEG_QUALITY })
       .toBuffer();
     return { ok: true, buffer };
   } catch {

@@ -4,6 +4,9 @@ import { promises as fs } from "fs";
 import path from "path";
 import sharp from "sharp";
 
+export const GARMENT_IMAGE_PREPROCESSING_VERSION = "garment-image-v1" as const;
+export const GARMENT_IMAGE_MAX_WIDTH = 1024 as const;
+
 export async function loadImageAsPngBuffer(source: string): Promise<Buffer> {
   let raw: Buffer;
   if (source.startsWith("http://") || source.startsWith("https://")) {
@@ -20,7 +23,10 @@ export async function loadImageAsPngBuffer(source: string): Promise<Buffer> {
     raw = await fs.readFile(filePath);
   }
   // 統一轉 PNG（SVG 也會在這裡被點陣化）
-  return sharp(raw).resize({ width: 1024, withoutEnlargement: true }).png().toBuffer();
+  return sharp(raw)
+    .resize({ width: GARMENT_IMAGE_MAX_WIDTH, withoutEnlargement: true })
+    .png()
+    .toBuffer();
 }
 
 export function toBase64DataUri(buffer: Buffer, mime = "image/png"): string {

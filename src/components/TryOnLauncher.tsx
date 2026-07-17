@@ -42,6 +42,8 @@ export default function TryOnLauncher({
   const [model, setModel] = useState<TryOnModel | null>(null);
   const pollAbort = useRef<{ stop: boolean }>({ stop: false });
   const lastImageRefreshAt = useRef(0);
+  // 只有 transport-level 不確定結果才沿用；收到任何 HTTP 回應後即結束這次生成意圖。
+  const generationIntentKey = useRef<string | null>(null);
 
   const refreshQuota = useCallback(async () => {
     try {
@@ -113,6 +115,7 @@ export default function TryOnLauncher({
       }
       setPersonPath(completed.path);
       setPersonPreview(completed.previewUrl);
+      generationIntentKey.current = null;
       setStep("ready");
     } catch (e) {
       setError(e instanceof Error ? e.message : "網路連線異常，請確認網路後再試一次。");
@@ -150,10 +153,15 @@ export default function TryOnLauncher({
     setError(null);
     setStep("generating");
     setJob(null);
+    const idempotencyKey = generationIntentKey.current ?? crypto.randomUUID();
+    generationIntentKey.current = idempotencyKey;
     try {
       const res = await fetch("/api/try-on", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         // model 只在可選模型的環境才會有值；未選（mock 模式）不帶欄位，後端沿用環境預設
         body: JSON.stringify({
           productId: product.id,
@@ -162,6 +170,7 @@ export default function TryOnLauncher({
         }),
       });
       const data = await res.json();
+      generationIntentKey.current = null;
       if (!res.ok) {
         setError(data.message ?? "AI 試穿啟動失敗，請再試一次。");
         setStep("ready");

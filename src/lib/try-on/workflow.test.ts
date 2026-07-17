@@ -3,6 +3,7 @@ import { enhanceResultImage, getEnhancementCostEstimate } from "@/lib/enhance";
 import { loadImageAsPngBuffer } from "@/lib/images";
 import {
   checkGenerationQuota,
+  findTryOnJobByIdempotency,
   recordTryOnJob,
   updateJobStatus,
 } from "@/lib/quota";
@@ -11,7 +12,9 @@ import type { Product, TryOnJob } from "@/lib/types";
 import { isOwnedPersonImagePath } from "@/lib/upload-intent";
 import { toJpegUploadBlob } from "@/lib/validation";
 import { getVTOProvider, resolveVTOProviderName } from "@/lib/vto";
-import type { VTOProvider } from "@/lib/vto/provider";
+import { VTOProviderError, type VTOProvider } from "@/lib/vto/provider";
+import { createTryOnRequestFingerprint } from "@/lib/try-on/idempotency";
+import { resolveTryOnConfig } from "@/lib/try-on/config";
 import {
   getAndAdvanceTryOnWorkflow,
   startTryOnWorkflow,
@@ -21,10 +24,16 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/enhance", () => ({
   enhanceResultImage: vi.fn(),
   getEnhancementCostEstimate: vi.fn(),
+  resolveEnhancementConfig: vi.fn(() => ({ provider: "none", modelVersion: null, scale: null })),
 }));
-vi.mock("@/lib/images", () => ({ loadImageAsPngBuffer: vi.fn() }));
+vi.mock("@/lib/images", () => ({
+  loadImageAsPngBuffer: vi.fn(),
+  GARMENT_IMAGE_PREPROCESSING_VERSION: "garment-image-v1",
+  GARMENT_IMAGE_MAX_WIDTH: 1024,
+}));
 vi.mock("@/lib/quota", () => ({
   checkGenerationQuota: vi.fn(),
+  findTryOnJobByIdempotency: vi.fn(),
   recordTryOnJob: vi.fn(),
   updateJobStatus: vi.fn(),
 }));
@@ -35,7 +44,11 @@ vi.mock("@/lib/supabase", () => ({
   getSupabaseAdmin: vi.fn(),
 }));
 vi.mock("@/lib/upload-intent", () => ({ isOwnedPersonImagePath: vi.fn() }));
-vi.mock("@/lib/validation", () => ({ toJpegUploadBlob: vi.fn() }));
+vi.mock("@/lib/validation", () => ({
+  toJpegUploadBlob: vi.fn(),
+  PERSON_IMAGE_PREPROCESSING_VERSION: "person-image-v1",
+  PERSON_IMAGE_JPEG_QUALITY: 92,
+}));
 vi.mock("@/lib/vto", () => ({
   getVTOProvider: vi.fn(),
   resolveVTOProviderName: vi.fn(),
@@ -84,6 +97,17 @@ function makeJob(overrides: Partial<TryOnJob> = {}): TryOnJob {
     budget_reservation: 0.08,
     retry_count: 1,
     error_message: null,
+    config_snapshot: {},
+    seed: 123,
+    started_at: "2026-07-17T01:00:00.000Z",
+    provider_submitted_at: "2026-07-17T01:00:01.000Z",
+    completed_at: null,
+    last_polled_at: null,
+    error_type: null,
+    error_code: null,
+    provider_http_status: null,
+    idempotency_key: null,
+    request_fingerprint: null,
     created_at: "2026-07-17T01:00:00.000Z",
     updated_at: "2026-07-17T01:00:00.000Z",
     ...overrides,
@@ -190,10 +214,11 @@ beforeEach(() => {
     remainingRetriesForProduct: 3,
   });
   vi.mocked(recordTryOnJob).mockResolvedValue({
-    allowed: true,
+    outcome: "created",
     remainingToday: 2,
     job: makeJob({ status: "pending", provider_job_id: null, retry_count: 0 }),
   });
+  vi.mocked(findTryOnJobByIdempotency).mockResolvedValue(null);
   vi.mocked(updateJobStatus).mockResolvedValue(undefined);
   vi.mocked(getEnhancementCostEstimate).mockReturnValue(0.005);
   vi.mocked(loadImageAsPngBuffer).mockResolvedValue(GARMENT_BYTES);
@@ -231,21 +256,31 @@ describe("startTryOnWorkflow", () => {
       costEstimate: 0.075,
       remainingToday: 2,
     });
-    expect(recordTryOnJob).toHaveBeenCalledWith({
-      userId: USER_ID,
-      productId: PRODUCT_ID,
-      personImagePath: PERSON_PATH,
-      garmentImageUrl: GARMENT_PATH,
-      provider: "fashn",
-      costEstimate: 0.075,
-      budgetReservation: 0.08,
-    });
+    expect(recordTryOnJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: USER_ID,
+        productId: PRODUCT_ID,
+        personImagePath: PERSON_PATH,
+        garmentImageUrl: GARMENT_PATH,
+        provider: "fashn",
+        costEstimate: 0.075,
+        budgetReservation: 0.08,
+        seed: expect.any(Number),
+        configSnapshot: expect.objectContaining({ schemaVersion: 1 }),
+        startedAt: expect.any(String),
+      }),
+    );
     expect(database.personDownload).toHaveBeenCalledWith(PERSON_PATH);
     expect(loadImageAsPngBuffer).toHaveBeenCalledWith(GARMENT_PATH);
     expect(provider.submit).toHaveBeenCalledWith({
       personImage: PERSON_BYTES,
       garmentImage: GARMENT_BYTES,
       garmentType: "tops",
+      generationConfig: expect.objectContaining({
+        providerName: "fashn",
+        modelName: "tryon-v1.6",
+        seed: expect.any(Number),
+      }),
     });
   });
 
@@ -274,6 +309,16 @@ describe("startTryOnWorkflow", () => {
     expect(getSupabaseAdmin).not.toHaveBeenCalled();
     expect(recordTryOnJob).not.toHaveBeenCalled();
   });
+
+  it.each(["", "contains space", "line\nbreak", "x".repeat(129)])(
+    "非法 Idempotency-Key 在任何 DB/Provider 工作前拒絕：%s",
+    async (idempotencyKey) => {
+      const result = await startTryOnWorkflow({ ...input, idempotencyKey });
+      expect(result).toMatchObject({ ok: false, code: "invalid_idempotency_key" });
+      expect(recordTryOnJob).not.toHaveBeenCalled();
+      expect(getVTOProvider).not.toHaveBeenCalled();
+    },
+  );
 
   it("商品不存在或未啟用時被拒絕", async () => {
     const database = installSupabase({ product: null });
@@ -314,7 +359,7 @@ describe("startTryOnWorkflow", () => {
 
   it("原子 Job 建立被拒絕時不呼叫 Provider", async () => {
     vi.mocked(recordTryOnJob).mockResolvedValue({
-      allowed: false,
+      outcome: "rejected",
       reason: "平台預算已達上限",
       remainingToday: 1,
     });
@@ -346,6 +391,8 @@ describe("startTryOnWorkflow", () => {
     expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
       status: "failed",
       error_message: "讀取不到剛上傳的照片，請重新上傳一次。",
+      error_type: "person_image_read",
+      error_code: "PERSON_IMAGE_DOWNLOAD_FAILED",
     });
     expect(provider.submit).not.toHaveBeenCalled();
   });
@@ -365,6 +412,8 @@ describe("startTryOnWorkflow", () => {
     expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
       status: "failed",
       error_message: "商品圖無法讀取",
+      error_type: "garment_image_read",
+      error_code: "GARMENT_IMAGE_READ_FAILED",
     });
     expect(provider.submit).not.toHaveBeenCalled();
   });
@@ -384,6 +433,9 @@ describe("startTryOnWorkflow", () => {
     expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
       status: "failed",
       error_message: "provider unavailable",
+      error_type: "provider_submit",
+      error_code: "PROVIDER_SUBMIT_FAILED",
+      provider_http_status: null,
     });
   });
 
@@ -396,6 +448,104 @@ describe("startTryOnWorkflow", () => {
       provider_job_id: "submitted-provider-job-id",
     });
     expect(updateJobStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("同 user/key/fingerprint replay 回原 Job，不建 Job、不產新設定、不提交 Provider", async () => {
+    const idempotencyKey = "request-123";
+    const requestFingerprint = createTryOnRequestFingerprint({
+      userId: USER_ID,
+      productId: PRODUCT_ID,
+      personImagePath: PERSON_PATH,
+      providerName: "fashn",
+      configSnapshot: resolveTryOnConfig("fashn", 0).snapshot,
+    });
+    vi.mocked(findTryOnJobByIdempotency).mockResolvedValue(
+      makeJob({
+        idempotency_key: idempotencyKey,
+        request_fingerprint: requestFingerprint,
+        seed: 987654321,
+        status: "success",
+      }),
+    );
+    const provider = installProvider();
+
+    const result = await startTryOnWorkflow({ ...input, idempotencyKey });
+
+    expect(result).toMatchObject({ ok: true, jobId: JOB_ID, status: "processing" });
+    expect(recordTryOnJob).not.toHaveBeenCalled();
+    expect(getVTOProvider).not.toHaveBeenCalled();
+    expect(provider.submit).not.toHaveBeenCalled();
+  });
+
+  it("同 user/key 但不同 fingerprint 回 conflict，不扣額度或提交 Provider", async () => {
+    vi.mocked(findTryOnJobByIdempotency).mockResolvedValue(
+      makeJob({ idempotency_key: "request-123", request_fingerprint: "a".repeat(64) }),
+    );
+    const provider = installProvider();
+
+    const result = await startTryOnWorkflow({ ...input, idempotencyKey: "request-123" });
+
+    expect(result).toMatchObject({ ok: false, code: "idempotency_conflict" });
+    expect(checkGenerationQuota).not.toHaveBeenCalled();
+    expect(recordTryOnJob).not.toHaveBeenCalled();
+    expect(provider.submit).not.toHaveBeenCalled();
+  });
+
+  it("RPC 競態收斂為 replay 時仍不提交 Provider或覆寫 snapshot", async () => {
+    const replayJob = makeJob({
+      seed: 777,
+      config_snapshot: { schemaVersion: 1 } as never,
+      idempotency_key: "request-race",
+      request_fingerprint: "b".repeat(64),
+    });
+    vi.mocked(recordTryOnJob).mockResolvedValue({
+      outcome: "replayed",
+      remainingToday: 2,
+      job: replayJob,
+    });
+    const provider = installProvider();
+
+    const result = await startTryOnWorkflow({ ...input, idempotencyKey: "request-race" });
+
+    expect(result).toMatchObject({ ok: true, jobId: JOB_ID });
+    expect(checkGenerationQuota).not.toHaveBeenCalled();
+    expect(provider.submit).not.toHaveBeenCalled();
+    expect(updateJobStatus).not.toHaveBeenCalled();
+  });
+
+  it("可信內部呼叫可指定 seed，snapshot 與 Provider 使用同一值", async () => {
+    const provider = installProvider();
+    await startTryOnWorkflow({ ...input, seed: 4294967295 });
+
+    expect(recordTryOnJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        seed: 4294967295,
+        configSnapshot: expect.objectContaining({
+          generation: expect.objectContaining({ seed: 4294967295 }),
+        }),
+      }),
+    );
+    expect(provider.submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generationConfig: expect.objectContaining({ seed: 4294967295 }),
+      }),
+    );
+  });
+
+  it("不同 idempotency key 代表兩次獨立生成意圖", async () => {
+    const provider = installProvider();
+    await startTryOnWorkflow({ ...input, idempotencyKey: "request-a" });
+    await startTryOnWorkflow({ ...input, idempotencyKey: "request-b" });
+
+    expect(recordTryOnJob).toHaveBeenCalledTimes(2);
+    expect(provider.submit).toHaveBeenCalledTimes(2);
+    const fingerprints = vi.mocked(recordTryOnJob).mock.calls.map(
+      ([creationInput]) => creationInput.requestFingerprint,
+    );
+    const seeds = vi.mocked(recordTryOnJob).mock.calls.map(([creationInput]) => creationInput.seed);
+    // key 不屬於生成語意：兩個 key 可各自建立，但相同輸入 fingerprint 應一致。
+    expect(fingerprints[0]).toBe(fingerprints[1]);
+    expect(seeds[0]).not.toBe(seeds[1]);
   });
 });
 
@@ -426,7 +576,12 @@ describe("getAndAdvanceTryOnWorkflow", () => {
     expect(result).toMatchObject({ ok: true, view: { status: "processing" } });
     expect(provider.checkStatus).toHaveBeenCalledWith("provider-job-id", undefined);
     expect(database.resultUpload).not.toHaveBeenCalled();
-    expect(updateJobStatus).not.toHaveBeenCalled();
+    expect(updateJobStatus).toHaveBeenCalledOnce();
+    expect(updateJobStatus).toHaveBeenCalledWith(
+      JOB_ID,
+      { last_polled_at: expect.any(String) },
+      expect.any(String),
+    );
   });
 
   it("Provider terminal failed 時將 Job 更新為 failed", async () => {
@@ -438,6 +593,9 @@ describe("getAndAdvanceTryOnWorkflow", () => {
     expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
       status: "failed",
       error_message: "生成失敗",
+      error_type: "provider_rejected",
+      error_code: "PROVIDER_REJECTED",
+      provider_http_status: null,
     });
     expect(result).toMatchObject({
       ok: true,
@@ -478,6 +636,8 @@ describe("getAndAdvanceTryOnWorkflow", () => {
     expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
       status: "failed",
       error_message: "結果圖儲存失敗：bucket unavailable",
+      error_type: "result_storage",
+      error_code: "RESULT_STORAGE_UPLOAD_FAILED",
     });
     expect(result).toMatchObject({
       ok: true,
@@ -582,6 +742,7 @@ describe("getAndAdvanceTryOnWorkflow", () => {
       "try-on-results",
       `${USER_ID}/${JOB_ID}.jpg`
     );
+    expect(updateJobStatus).not.toHaveBeenCalled();
   });
 
   it("需要原圖但人物照已清除時維持既有 409 domain result", async () => {
@@ -593,6 +754,8 @@ describe("getAndAdvanceTryOnWorkflow", () => {
     expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
       status: "failed",
       error_message: "人物照已依資料保留政策清除。",
+      error_type: "person_image_read",
+      error_code: "PERSON_IMAGE_REMOVED",
     });
     expect(result).toEqual({
       ok: false,
@@ -601,11 +764,51 @@ describe("getAndAdvanceTryOnWorkflow", () => {
     });
   });
 
-  it("poll 直接拋例外時維持 throw，且不額外改變 Job", async () => {
+  it("poll 直接拋例外時維持既有 throw，並留下結構化終態", async () => {
     const provider = installProvider();
     provider.checkStatus.mockRejectedValue(new Error("poll network error"));
 
     await expect(getAndAdvanceTryOnWorkflow(input)).rejects.toThrow("poll network error");
-    expect(updateJobStatus).not.toHaveBeenCalled();
+    expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
+      status: "failed",
+      error_message: "poll network error",
+      error_type: "provider_poll",
+      error_code: "PROVIDER_POLL_FAILED",
+      provider_http_status: null,
+    });
+  });
+
+  it("Provider 結果下載拋錯時分類為 provider_output_download", async () => {
+    const provider = installProvider();
+    provider.checkStatus.mockRejectedValue(
+      new VTOProviderError(
+        "AI 結果圖下載失敗，請稍後再試一次。",
+        "provider_output_download",
+        502,
+      ),
+    );
+
+    await expect(getAndAdvanceTryOnWorkflow(input)).rejects.toThrow(/結果圖下載失敗/);
+    expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
+      status: "failed",
+      error_message: "AI 結果圖下載失敗，請稍後再試一次。",
+      error_type: "provider_output_download",
+      error_code: "PROVIDER_OUTPUT_DOWNLOAD_FAILED",
+      provider_http_status: 502,
+    });
+  });
+
+  it("未預期內部錯誤標成 internal，HTTP 層仍可維持原 throw 映射", async () => {
+    const provider = installProvider();
+    provider.checkStatus.mockResolvedValue({ status: "success", resultImage: RESULT_BYTES });
+    vi.mocked(enhanceResultImage).mockRejectedValue(new Error("unexpected invariant"));
+
+    await expect(getAndAdvanceTryOnWorkflow(input)).rejects.toThrow("unexpected invariant");
+    expect(updateJobStatus).toHaveBeenCalledWith(JOB_ID, {
+      status: "failed",
+      error_message: "unexpected invariant",
+      error_type: "internal",
+      error_code: "INTERNAL_ERROR",
+    });
   });
 });
