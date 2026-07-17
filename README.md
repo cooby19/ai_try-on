@@ -1,6 +1,6 @@
 # AI 虛擬試衣 V1.0 營運基礎
 
-使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On API 產生試穿預覽圖。V1.0 加入 Email outbox、取消／退款、客服、風險事件、營運 RBAC、完整稽核與資料保留工作。
+使用者上傳**正面半身照**、選擇一件**上衣**商品，系統透過 Virtual Try-On API 產生試穿預覽圖，並可將有興趣的尺寸規格加入跨裝置購物車、建立訂單。V1.0 另加入 Email outbox、取消／退款申請、客服、風險事件、營運 RBAC、完整稽核與資料保留工作。
 
 > 重要：目前仍只有 Mock Payment。正式環境預設拒絕 Mock；選定並驗證真實金流前，不可對外宣稱可正式收款。完整營運與上線清單見 [docs/V1_OPERATIONS.md](docs/V1_OPERATIONS.md)。
 
@@ -36,6 +36,7 @@ npm install
    - `009_mock_payments_and_order_history.sql`（Mock 付款、Webhook 冪等事件與訂單付款狀態；V0.7 必跑）
    - `010_inventory_reservations.sql`（庫存保留、付款成功才扣庫存、失敗／取消／逾期自動釋放；V0.7 必跑）
    - `011_v1_operations_security.sql`（Email、取消退款、客服、風險、RBAC、RLS、稽核、資料保留；V1.0 必跑）
+   - `012_notification_record_only_mode.sql`（未設定 Email provider 時的通知記錄模式；V1.0 必跑）
 
 ### 3. 設定環境變數
 
@@ -142,6 +143,18 @@ npm run dev
 | POST | `/api/orders` | 從目前登入者的購物車建立待付款訂單 |
 | POST | `/api/orders/[orderId]/mock-payment` | 為本人的待付款訂單模擬成功／失敗／取消／逾期 |
 | POST | `/api/payments/mock/webhook` | 接收具 HMAC 簽章的 Mock 付款結果並冪等更新訂單 |
+| GET / POST | `/api/addresses` | 取得／新增本人的地址簿項目 |
+| PATCH / DELETE | `/api/addresses/[addressId]` | 修改／刪除本人的地址簿項目 |
+| GET | `/api/shipping-methods` | 取得可用運送方式 |
+| POST | `/api/orders/[orderId]/cancellation` | 建立訂單取消申請 |
+| POST | `/api/orders/[orderId]/refund` | 建立退款申請 |
+| GET / POST | `/api/support/tickets` | 取得／建立本人的客服案件 |
+| POST | `/api/support/tickets/[ticketId]/messages` | 在本人的客服案件中新增訊息 |
+| POST | `/api/auth/otp/request` | 請求 Email OTP，並記錄風險事件所需的雜湊指紋 |
+| POST | `/api/auth/otp/verify` | 驗證 Email OTP |
+| GET | `/api/image/[...slug]` | 驗證目前使用者後代理私有圖片 |
+| GET / POST | `/api/internal/notifications/dispatch` | 由 Cron 觸發的 Email outbox 派送（需 `CRON_SECRET`） |
+| GET / POST | `/api/internal/retention/run` | 由 Cron 觸發的資料保留工作（需 `CRON_SECRET`） |
 
 ## V0.7 Mock 付款資料流
 
@@ -204,24 +217,31 @@ npm run dev
 
 ```
 src/
-├── lib/
-│   ├── vto/            # VTO provider 抽象層（mock / fashn / factory）
-│   ├── quota.ts        # 額度檢查與任務紀錄
-│   ├── validation.ts   # 照片格式/大小/解析度檢查
-│   ├── supabase.ts     # 後端專用 Supabase client + signed URL
-│   ├── user.ts         # Supabase Auth 使用者驗證
-│   ├── account.ts      # 帳戶中心最小 DTO 與本人資料查詢
-│   ├── supabase/       # browser/server/proxy SSR Auth clients
-│   └── images.ts       # 圖片載入/轉檔工具
 ├── app/
-│   ├── api/            # upload / try-on / feedback / quota / account / cart
-│   ├── account/        # 帳戶中心（基本資料、試穿、隱私、危險操作）
-│   ├── cart/           # 獨立購物車頁
-│   ├── page.tsx        # 商品列表
-│   └── products/[id]/  # 商品頁
-└── components/         # 試穿元件、CartProvider、購物車頁與加入按鈕
-supabase/migrations/               # 001–009：核心資料、購物車、結帳與 Mock 金流
+│   ├── api/            # Auth、圖片、試穿、購物車、結帳、訂單、客服與內部 Cron Route Handlers
+│   ├── account/        # 帳戶中心與地址簿
+│   ├── admin/          # 僅具營運角色可進入的後台
+│   ├── auth/           # Google OAuth callback 與登入 Server Actions
+│   ├── cart/、checkout/、orders/、support/ # 購物車、結帳、訂單與客服頁
+│   ├── products/[id]/  # 商品頁
+│   └── page.tsx        # 商品列表
+├── components/         # 試穿、CartProvider、結帳、訂單、客服與帳戶互動元件
+├── lib/
+│   ├── vto/、enhance/  # VTO provider 與選配結果圖放大抽象層
+│   ├── cart*.ts、orders*.ts、mock-payments.ts # 購物車、結帳／訂單與付款商業規則
+│   ├── support.ts、risk.ts、staff.ts、retention.ts、notifications.ts # V1 營運服務
+│   ├── supabase/       # browser/server/proxy SSR Auth clients
+│   └── supabase.ts      # 後端 service-role client 與私有圖片 signed URL
+└── proxy.ts             # 更新 Supabase SSR session
+supabase/migrations/               # 001–012：核心、會員、購物車、結帳、付款、庫存與 V1 營運
+supabase/tests/                    # Supabase RLS／權限安全檢查
+vercel.json                         # 通知派送與資料保留 Cron
+.github/workflows/ci.yml            # push／PR 的 test + lint
 ```
+
+## CI
+
+GitHub Actions 會在 push 與 pull request 時使用 `npm ci` 依鎖檔安裝套件，接著執行 `npm run test` 與 `npm run lint`。測試完全離線，不需在 CI 設定 Supabase、VTO 或 Email 憑證。
 
 ## 未來擴充（刻意不在第一版做）
 
