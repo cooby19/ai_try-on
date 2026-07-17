@@ -10,6 +10,7 @@
     "test:db:idempotency": "node scripts/verify-idempotency-concurrency.mjs",
     "test:watch": "vitest",
     "try-on:cases": "node --import tsx scripts/run-try-on-cases.ts",
+    "try-on:report": "node --import tsx scripts/run-try-on-report.ts",
     "lint": "eslint ."
   },
   "dependencies": {

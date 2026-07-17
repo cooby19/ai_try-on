@@ -218,6 +218,17 @@ npm run try-on:cases -- --json
 
 相同 commit 與參數的 JSON 輸出可 byte-for-byte 重現；golden 不提供自動更新模式，任何變更都必須人工審查 fixture diff。
 
+### Try-On Baseline Report
+
+`try-on:report` 以唯讀方式統計真實 Supabase job／Storage 資料，輸出成功率、結構化錯誤、生命週期延遲、記錄成本估算與 Storage／DB 使用情況；不會呼叫 VTO provider 或修改資料。若未提供 `DB_URL`，會安全降級使用後端 Supabase Data／Storage API，並把無法取得的 relation/database size 標為 `N/A`。
+
+```bash
+npm run try-on:report
+npm run try-on:report -- --from 2026-07-10T00:00:00.000Z --to 2026-07-17T00:00:00.000Z --format json
+```
+
+完整口徑、輸出與安全規則見 [docs/TRY_ON_BASELINE_REPORT.md](docs/TRY_ON_BASELINE_REPORT.md)。固定案例只作離線回歸驗證，不會冒充 production 指標。
+
 ## 購物車跨裝置驗證
 
 1. 在未登入瀏覽器選擇商品尺寸並加入購物車；重新整理 `/cart`，內容應保留。
