@@ -382,7 +382,7 @@ function ModelSelector({
   onChange: (model: TryOnModel) => void;
 }) {
   const options: { key: TryOnModel; label: string; hint: string }[] = [
-    { key: "v1.6", label: "一般", hint: "速度較快，日常預覽適用" },
+    { key: "v1.6", label: "標準", hint: "速度較快，日常預覽適用" },
     { key: "max", label: "高品質", hint: "細節更好，生成時間較長" },
   ];
   return (
