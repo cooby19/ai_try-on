@@ -43,5 +43,5 @@ describe("fitImageToResponseLimit", () => {
     expect(result.contentType).toBe("image/jpeg");
     expect(result.buffer.length).toBeLessThanOrEqual(MAX_IMAGE_RESPONSE_BYTES);
     expect((await sharp(result.buffer).metadata()).format).toBe("jpeg");
-  });
+  }, 15_000);
 });

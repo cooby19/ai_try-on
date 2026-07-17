@@ -9,6 +9,7 @@ import { DELETE as jobDelete, GET as jobGet } from "@/app/api/try-on/[jobId]/rou
 import { GET as imageGet } from "@/app/api/image/[...slug]/route";
 import { POST as deletionRequestPost } from "@/app/api/account/deletion-request/route";
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/user", () => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({
   getSupabaseAdmin: vi.fn(),
