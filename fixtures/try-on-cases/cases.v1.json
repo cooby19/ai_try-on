@@ -1,0 +1,1444 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "start-v16-explicit-seed-success",
+      "description": "v1.6 使用明確 seed 建立、保存 snapshot 並提交成功",
+      "clock": {
+        "start": "2026-07-17T00:00:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333333",
+        "providerJobId": "provider-job-fixed-001",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "seed": 123456789
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": true,
+            "jobId": "33333333-3333-4333-8333-333333333333",
+            "status": "processing",
+            "costEstimate": 0.075,
+            "remainingToday": 2
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333333",
+          "status": "processing",
+          "provider": "fashn",
+          "providerJobId": "provider-job-fixed-001",
+          "resultImagePath": null,
+          "costEstimate": 0.075,
+          "seed": 123456789,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 123456789,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          },
+          "startedAt": "2026-07-17T00:00:00.000Z",
+          "providerSubmittedAt": "2026-07-17T00:00:01.000Z",
+          "completedAt": null,
+          "lastPolledAt": null,
+          "errorType": null,
+          "errorCode": null,
+          "providerHttpStatus": null,
+          "idempotencyKey": null,
+          "requestFingerprint": null
+        },
+        "trace": [
+          "product.load:22222222-2222-4222-8222-222222222222:active",
+          "quota.check:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222:allowed",
+          "enhancement.estimate:fashn:0",
+          "job.record:fashn:seed=123456789:startedAt=2026-07-17T00:00:00.000Z:key=null",
+          "person.download:11111111-1111-4111-8111-111111111111/person.jpg:success",
+          "garment.load:/garments/fixed-top.png:success",
+          "provider.submit:fashn:seed=123456789:person=54315810963cd345108c698cd81fbac1facf049f57b16ce2636920ffb2798e0c:garment=7c1c953a799ea0e06a3ff5abfbacddb3399366aebb5707aff8674ead5220e8fa",
+          "job.update:33333333-3333-4333-8333-333333333333:{\"provider_job_id\":\"provider-job-fixed-001\",\"status\":\"processing\"}:at=2026-07-17T00:00:01.000Z"
+        ]
+      }
+    },
+    {
+      "id": "start-max-explicit-seed-success",
+      "description": "Max 使用明確 seed 與 balanced/1k/空 prompt snapshot 提交成功",
+      "clock": {
+        "start": "2026-07-17T00:01:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333334",
+        "providerJobId": "provider-job-fixed-002",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "max",
+            "seed": 42
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn-max"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": true,
+            "jobId": "33333333-3333-4333-8333-333333333334",
+            "status": "processing",
+            "costEstimate": 0.15,
+            "remainingToday": 2
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333334",
+          "status": "processing",
+          "provider": "fashn-max",
+          "providerJobId": "provider-job-fixed-002",
+          "resultImagePath": null,
+          "costEstimate": 0.15,
+          "seed": 42,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn-max",
+              "modelName": "tryon-max",
+              "mode": "balanced",
+              "resolution": "1k",
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 42,
+              "garmentType": null,
+              "garmentPhotoType": null
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": ""
+            }
+          },
+          "startedAt": "2026-07-17T00:01:00.000Z",
+          "providerSubmittedAt": "2026-07-17T00:01:01.000Z",
+          "completedAt": null,
+          "lastPolledAt": null,
+          "errorType": null,
+          "errorCode": null,
+          "providerHttpStatus": null,
+          "idempotencyKey": null,
+          "requestFingerprint": null
+        },
+        "trace": [
+          "product.load:22222222-2222-4222-8222-222222222222:active",
+          "quota.check:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222:allowed",
+          "enhancement.estimate:fashn-max:0",
+          "job.record:fashn-max:seed=42:startedAt=2026-07-17T00:01:00.000Z:key=null",
+          "person.download:11111111-1111-4111-8111-111111111111/person.jpg:success",
+          "garment.load:/garments/fixed-top.png:success",
+          "provider.submit:fashn-max:seed=42:person=54315810963cd345108c698cd81fbac1facf049f57b16ce2636920ffb2798e0c:garment=7c1c953a799ea0e06a3ff5abfbacddb3399366aebb5707aff8674ead5220e8fa",
+          "job.update:33333333-3333-4333-8333-333333333334:{\"provider_job_id\":\"provider-job-fixed-002\",\"status\":\"processing\"}:at=2026-07-17T00:01:01.000Z"
+        ]
+      }
+    },
+    {
+      "id": "start-idempotent-generated-seed-and-replay",
+      "description": "同一生成意圖 replay 保留 job、fingerprint 與由 key 決定的 seed",
+      "clock": {
+        "start": "2026-07-17T00:02:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333335",
+        "providerJobId": "provider-job-fixed-003",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "idempotencyKey": "fixed-idempotency-key"
+          }
+        },
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "idempotencyKey": "fixed-idempotency-key"
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": true,
+            "jobId": "33333333-3333-4333-8333-333333333335",
+            "status": "processing",
+            "costEstimate": 0.075,
+            "remainingToday": 2
+          },
+          {
+            "ok": true,
+            "jobId": "33333333-3333-4333-8333-333333333335",
+            "status": "processing",
+            "costEstimate": 0.075,
+            "remainingToday": 2
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333335",
+          "status": "processing",
+          "provider": "fashn",
+          "providerJobId": "provider-job-fixed-003",
+          "resultImagePath": null,
+          "costEstimate": 0.075,
+          "seed": 1400912348,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 1400912348,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          },
+          "startedAt": "2026-07-17T00:02:00.000Z",
+          "providerSubmittedAt": "2026-07-17T00:02:01.000Z",
+          "completedAt": null,
+          "lastPolledAt": null,
+          "errorType": null,
+          "errorCode": null,
+          "providerHttpStatus": null,
+          "idempotencyKey": "fixed-idempotency-key",
+          "requestFingerprint": "3b10d06923177b1197aec4fd48e89d1ba975433b08a27254e23b7538391a7cdf"
+        },
+        "trace": [
+          "idempotency.find:11111111-1111-4111-8111-111111111111:fixed-idempotency-key",
+          "product.load:22222222-2222-4222-8222-222222222222:active",
+          "enhancement.estimate:fashn:0",
+          "job.record:fashn:seed=1400912348:startedAt=2026-07-17T00:02:00.000Z:key=fixed-idempotency-key",
+          "person.download:11111111-1111-4111-8111-111111111111/person.jpg:success",
+          "garment.load:/garments/fixed-top.png:success",
+          "provider.submit:fashn:seed=1400912348:person=54315810963cd345108c698cd81fbac1facf049f57b16ce2636920ffb2798e0c:garment=7c1c953a799ea0e06a3ff5abfbacddb3399366aebb5707aff8674ead5220e8fa",
+          "job.update:33333333-3333-4333-8333-333333333335:{\"provider_job_id\":\"provider-job-fixed-003\",\"status\":\"processing\"}:at=2026-07-17T00:02:01.000Z",
+          "idempotency.find:11111111-1111-4111-8111-111111111111:fixed-idempotency-key",
+          "quota.check:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222:allowed"
+        ]
+      }
+    },
+    {
+      "id": "reject-missing-input",
+      "description": "缺少 productId 時在任何 I/O 前拒絕",
+      "clock": {
+        "start": "2026-07-17T00:03:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333336",
+        "providerJobId": "provider-job-fixed-004",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6"
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "missing_input",
+            "message": "缺少商品或人物照片資訊，請重新操作一次。"
+          }
+        ],
+        "finalJob": null,
+        "trace": []
+      }
+    },
+    {
+      "id": "reject-unsupported-model",
+      "description": "未知 model 在任何 I/O 前拒絕",
+      "clock": {
+        "start": "2026-07-17T00:04:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333337",
+        "providerJobId": "provider-job-fixed-005",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "unknown"
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "unsupported_model",
+            "message": "不支援的生成模型，請重新整理頁面後再選擇一次。"
+          }
+        ],
+        "finalJob": null,
+        "trace": []
+      }
+    },
+    {
+      "id": "reject-unowned-person-image",
+      "description": "不屬於使用者的人物照在查商品前拒絕",
+      "clock": {
+        "start": "2026-07-17T00:05:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333338",
+        "providerJobId": "provider-job-fixed-006",
+        "personImagePath": "99999999-9999-4999-8999-999999999999/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "99999999-9999-4999-8999-999999999999/person.jpg",
+            "requestedModel": "v1.6"
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": false,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "invalid_person_image",
+            "message": "照片來源驗證失敗，請重新上傳照片。"
+          }
+        ],
+        "finalJob": null,
+        "trace": []
+      }
+    },
+    {
+      "id": "reject-invalid-seed",
+      "description": "負數 seed 在任何 I/O 前拒絕",
+      "clock": {
+        "start": "2026-07-17T00:06:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333339",
+        "providerJobId": "provider-job-fixed-007",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "seed": -1
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "invalid_seed",
+            "message": "seed 必須是 0 到 4294967295 之間的整數。"
+          }
+        ],
+        "finalJob": null,
+        "trace": []
+      }
+    },
+    {
+      "id": "reject-invalid-idempotency-key",
+      "description": "含空白的 Idempotency-Key 在 DB 工作前拒絕",
+      "clock": {
+        "start": "2026-07-17T00:07:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333340",
+        "providerJobId": "provider-job-fixed-008",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "idempotencyKey": "invalid key"
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "invalid_idempotency_key",
+            "message": "Idempotency-Key 格式不合法，請使用 1–128 個英數字元或 . _ : -。"
+          }
+        ],
+        "finalJob": null,
+        "trace": []
+      }
+    },
+    {
+      "id": "reject-product-not-found-or-inactive",
+      "description": "商品不存在或停用時不建立 job",
+      "clock": {
+        "start": "2026-07-17T00:08:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333341",
+        "providerJobId": "provider-job-fixed-009",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6"
+          }
+        }
+      ],
+      "initialState": {
+        "product": "missing",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "product_not_found",
+            "message": "找不到這個商品，請重新整理頁面。"
+          }
+        ],
+        "finalJob": null,
+        "trace": [
+          "product.load:22222222-2222-4222-8222-222222222222:missing"
+        ]
+      }
+    },
+    {
+      "id": "reject-quota-without-provider-call",
+      "description": "額度不足時不建立 job、不讀圖片也不呼叫 Provider",
+      "clock": {
+        "start": "2026-07-17T00:09:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333342",
+        "providerJobId": "provider-job-fixed-010",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6"
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "rejected",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "quota_rejected",
+            "message": "你今天的 AI 試穿額度（3 次）已用完，明天會自動恢復。",
+            "remainingToday": 0
+          }
+        ],
+        "finalJob": null,
+        "trace": [
+          "product.load:22222222-2222-4222-8222-222222222222:active",
+          "quota.check:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222:rejected"
+        ]
+      }
+    },
+    {
+      "id": "fail-person-image-read",
+      "description": "人物照下載失敗後保存結構化失敗分類",
+      "clock": {
+        "start": "2026-07-17T00:10:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333343",
+        "providerJobId": "provider-job-fixed-011",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "seed": 11
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "failure",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "submission_failed",
+            "message": "讀取不到剛上傳的照片，請重新上傳一次。",
+            "jobId": "33333333-3333-4333-8333-333333333343"
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333343",
+          "status": "failed",
+          "provider": "fashn",
+          "providerJobId": null,
+          "resultImagePath": null,
+          "costEstimate": 0.075,
+          "seed": 11,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 11,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          },
+          "startedAt": "2026-07-17T00:10:00.000Z",
+          "providerSubmittedAt": null,
+          "completedAt": "2026-07-17T00:10:01.000Z",
+          "lastPolledAt": null,
+          "errorType": "person_image_read",
+          "errorCode": "PERSON_IMAGE_DOWNLOAD_FAILED",
+          "providerHttpStatus": null,
+          "idempotencyKey": null,
+          "requestFingerprint": null
+        },
+        "trace": [
+          "product.load:22222222-2222-4222-8222-222222222222:active",
+          "quota.check:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222:allowed",
+          "enhancement.estimate:fashn:0",
+          "job.record:fashn:seed=11:startedAt=2026-07-17T00:10:00.000Z:key=null",
+          "person.download:11111111-1111-4111-8111-111111111111/person.jpg:failure",
+          "job.update:33333333-3333-4333-8333-333333333343:{\"error_code\":\"PERSON_IMAGE_DOWNLOAD_FAILED\",\"error_message\":\"讀取不到剛上傳的照片，請重新上傳一次。\",\"error_type\":\"person_image_read\",\"status\":\"failed\"}:at=2026-07-17T00:10:01.000Z"
+        ]
+      }
+    },
+    {
+      "id": "fail-garment-image-read",
+      "description": "商品圖讀取失敗後保存結構化失敗分類",
+      "clock": {
+        "start": "2026-07-17T00:11:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333344",
+        "providerJobId": "provider-job-fixed-012",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "seed": 12
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "failure",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "submission_failed",
+            "message": "商品圖片讀取失敗",
+            "jobId": "33333333-3333-4333-8333-333333333344"
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333344",
+          "status": "failed",
+          "provider": "fashn",
+          "providerJobId": null,
+          "resultImagePath": null,
+          "costEstimate": 0.075,
+          "seed": 12,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 12,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          },
+          "startedAt": "2026-07-17T00:11:00.000Z",
+          "providerSubmittedAt": null,
+          "completedAt": "2026-07-17T00:11:01.000Z",
+          "lastPolledAt": null,
+          "errorType": "garment_image_read",
+          "errorCode": "GARMENT_IMAGE_READ_FAILED",
+          "providerHttpStatus": null,
+          "idempotencyKey": null,
+          "requestFingerprint": null
+        },
+        "trace": [
+          "product.load:22222222-2222-4222-8222-222222222222:active",
+          "quota.check:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222:allowed",
+          "enhancement.estimate:fashn:0",
+          "job.record:fashn:seed=12:startedAt=2026-07-17T00:11:00.000Z:key=null",
+          "person.download:11111111-1111-4111-8111-111111111111/person.jpg:success",
+          "garment.load:/garments/fixed-top.png:failure",
+          "job.update:33333333-3333-4333-8333-333333333344:{\"error_code\":\"GARMENT_IMAGE_READ_FAILED\",\"error_message\":\"商品圖片讀取失敗\",\"error_type\":\"garment_image_read\",\"status\":\"failed\"}:at=2026-07-17T00:11:01.000Z"
+        ]
+      }
+    },
+    {
+      "id": "fail-provider-submit-http-503",
+      "description": "Provider submit 503 保存 stage、code 與 HTTP status",
+      "clock": {
+        "start": "2026-07-17T00:12:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333345",
+        "providerJobId": "provider-job-fixed-013",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "seed": 13
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "none",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "http-503",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "submission_failed",
+            "message": "provider unavailable",
+            "jobId": "33333333-3333-4333-8333-333333333345"
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333345",
+          "status": "failed",
+          "provider": "fashn",
+          "providerJobId": null,
+          "resultImagePath": null,
+          "costEstimate": 0.075,
+          "seed": 13,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 13,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          },
+          "startedAt": "2026-07-17T00:12:00.000Z",
+          "providerSubmittedAt": null,
+          "completedAt": "2026-07-17T00:12:01.000Z",
+          "lastPolledAt": null,
+          "errorType": "provider_submit",
+          "errorCode": "PROVIDER_SUBMIT_FAILED",
+          "providerHttpStatus": 503,
+          "idempotencyKey": null,
+          "requestFingerprint": null
+        },
+        "trace": [
+          "product.load:22222222-2222-4222-8222-222222222222:active",
+          "quota.check:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222:allowed",
+          "enhancement.estimate:fashn:0",
+          "job.record:fashn:seed=13:startedAt=2026-07-17T00:12:00.000Z:key=null",
+          "person.download:11111111-1111-4111-8111-111111111111/person.jpg:success",
+          "garment.load:/garments/fixed-top.png:success",
+          "provider.submit:fashn:seed=13:person=54315810963cd345108c698cd81fbac1facf049f57b16ce2636920ffb2798e0c:garment=7c1c953a799ea0e06a3ff5abfbacddb3399366aebb5707aff8674ead5220e8fa",
+          "job.update:33333333-3333-4333-8333-333333333345:{\"error_code\":\"PROVIDER_SUBMIT_FAILED\",\"error_message\":\"provider unavailable\",\"error_type\":\"provider_submit\",\"provider_http_status\":503,\"status\":\"failed\"}:at=2026-07-17T00:12:01.000Z"
+        ]
+      }
+    },
+    {
+      "id": "conflict-same-key-different-intent",
+      "description": "同 user/key 的不同 fingerprint 拒絕且不產生新副作用",
+      "clock": {
+        "start": "2026-07-17T00:13:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333346",
+        "providerJobId": "provider-job-fixed-014",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "start",
+          "input": {
+            "productId": "22222222-2222-4222-8222-222222222222",
+            "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+            "requestedModel": "v1.6",
+            "idempotencyKey": "fixed-idempotency-key"
+          }
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "conflict",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": []
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": false,
+            "code": "idempotency_conflict",
+            "message": "此 Idempotency-Key 已用於不同的試穿請求，請更換 key 後重試。"
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333346",
+          "status": "processing",
+          "provider": "fashn",
+          "providerJobId": "provider-job-fixed-014",
+          "resultImagePath": null,
+          "costEstimate": 0.075,
+          "seed": 777,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 777,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          },
+          "startedAt": "2026-07-17T00:13:00.000Z",
+          "providerSubmittedAt": "2026-07-17T00:13:00.000Z",
+          "completedAt": null,
+          "lastPolledAt": null,
+          "errorType": null,
+          "errorCode": null,
+          "providerHttpStatus": null,
+          "idempotencyKey": "fixed-idempotency-key",
+          "requestFingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "trace": [
+          "idempotency.find:11111111-1111-4111-8111-111111111111:fixed-idempotency-key"
+        ]
+      }
+    },
+    {
+      "id": "poll-processing-then-success",
+      "description": "兩次 poll 由 processing 進入 success 並保存結果及生命週期時間",
+      "clock": {
+        "start": "2026-07-17T00:14:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333347",
+        "providerJobId": "provider-job-fixed-015",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "poll"
+        },
+        {
+          "action": "poll"
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "processing",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": [
+          "processing",
+          "success"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": true,
+            "view": {
+              "jobId": "33333333-3333-4333-8333-333333333347",
+              "status": "processing",
+              "personImageUrl": "signed://person/11111111-1111-4111-8111-111111111111/person.jpg",
+              "resultImageUrl": null,
+              "costEstimate": 0.075,
+              "retryCount": 0
+            }
+          },
+          {
+            "ok": true,
+            "view": {
+              "jobId": "33333333-3333-4333-8333-333333333347",
+              "status": "success",
+              "personImageUrl": "signed://person/11111111-1111-4111-8111-111111111111/person.jpg",
+              "resultImageUrl": "signed://result/11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333347.jpg",
+              "costEstimate": 0.075,
+              "retryCount": 0
+            }
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333347",
+          "status": "success",
+          "provider": "fashn",
+          "providerJobId": "provider-job-fixed-015",
+          "resultImagePath": "11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333347.jpg",
+          "costEstimate": 0.075,
+          "seed": 777,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 777,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          },
+          "startedAt": "2026-07-17T00:14:00.000Z",
+          "providerSubmittedAt": "2026-07-17T00:14:00.000Z",
+          "completedAt": "2026-07-17T00:14:02.000Z",
+          "lastPolledAt": "2026-07-17T00:14:01.000Z",
+          "errorType": null,
+          "errorCode": null,
+          "providerHttpStatus": null,
+          "idempotencyKey": null,
+          "requestFingerprint": null
+        },
+        "trace": [
+          "job.loadOwned:33333333-3333-4333-8333-333333333347:11111111-1111-4111-8111-111111111111",
+          "job.update:33333333-3333-4333-8333-333333333347:{\"last_polled_at\":\"2026-07-17T00:14:00.000Z\"}:at=2026-07-17T00:14:00.000Z",
+          "provider.checkStatus:provider-job-fixed-015:0:processing",
+          "signed.person:11111111-1111-4111-8111-111111111111/person.jpg",
+          "job.loadOwned:33333333-3333-4333-8333-333333333347:11111111-1111-4111-8111-111111111111",
+          "job.update:33333333-3333-4333-8333-333333333347:{\"last_polled_at\":\"2026-07-17T00:14:01.000Z\"}:at=2026-07-17T00:14:01.000Z",
+          "provider.checkStatus:provider-job-fixed-015:1:success",
+          "enhancement.run:fashn:fab8b43586545b1d5a83ca161c3bb0cac24fcb472e280bccc1e685e48d5daa87:skipped",
+          "result.upload:11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333347.jpg:fab8b43586545b1d5a83ca161c3bb0cac24fcb472e280bccc1e685e48d5daa87:29",
+          "job.update:33333333-3333-4333-8333-333333333347:{\"result_image_url\":\"11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333347.jpg\",\"status\":\"success\"}:at=2026-07-17T00:14:02.000Z",
+          "signed.person:11111111-1111-4111-8111-111111111111/person.jpg",
+          "signed.result:11111111-1111-4111-8111-111111111111/33333333-3333-4333-8333-333333333347.jpg"
+        ]
+      }
+    },
+    {
+      "id": "poll-provider-rejected",
+      "description": "Provider terminal rejection 保存錯誤 code、HTTP status 與完成時間",
+      "clock": {
+        "start": "2026-07-17T00:15:00.000Z",
+        "stepMs": 1000
+      },
+      "ids": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "productId": "22222222-2222-4222-8222-222222222222",
+        "jobId": "33333333-3333-4333-8333-333333333348",
+        "providerJobId": "provider-job-fixed-016",
+        "personImagePath": "11111111-1111-4111-8111-111111111111/person.jpg",
+        "garmentImagePath": "/garments/fixed-top.png"
+      },
+      "steps": [
+        {
+          "action": "poll"
+        }
+      ],
+      "initialState": {
+        "product": "active",
+        "job": "processing",
+        "provider": "fashn"
+      },
+      "behavior": {
+        "ownedPersonImage": true,
+        "quota": "allowed",
+        "personRead": "success",
+        "garmentRead": "success",
+        "providerSubmit": "success",
+        "poll": [
+          "rejected"
+        ]
+      },
+      "expected": {
+        "results": [
+          {
+            "ok": true,
+            "view": {
+              "jobId": "33333333-3333-4333-8333-333333333348",
+              "status": "failed",
+              "personImageUrl": "signed://person/11111111-1111-4111-8111-111111111111/person.jpg",
+              "resultImageUrl": null,
+              "costEstimate": 0.075,
+              "retryCount": 0,
+              "message": "provider rejected the image"
+            }
+          }
+        ],
+        "finalJob": {
+          "id": "33333333-3333-4333-8333-333333333348",
+          "status": "failed",
+          "provider": "fashn",
+          "providerJobId": "provider-job-fixed-016",
+          "resultImagePath": null,
+          "costEstimate": 0.075,
+          "seed": 777,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 777,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          },
+          "startedAt": "2026-07-17T00:15:00.000Z",
+          "providerSubmittedAt": "2026-07-17T00:15:00.000Z",
+          "completedAt": "2026-07-17T00:15:01.000Z",
+          "lastPolledAt": "2026-07-17T00:15:00.000Z",
+          "errorType": "provider_rejected",
+          "errorCode": "CONTENT_REJECTED",
+          "providerHttpStatus": 422,
+          "idempotencyKey": null,
+          "requestFingerprint": null
+        },
+        "trace": [
+          "job.loadOwned:33333333-3333-4333-8333-333333333348:11111111-1111-4111-8111-111111111111",
+          "job.update:33333333-3333-4333-8333-333333333348:{\"last_polled_at\":\"2026-07-17T00:15:00.000Z\"}:at=2026-07-17T00:15:00.000Z",
+          "provider.checkStatus:provider-job-fixed-016:0:rejected",
+          "job.update:33333333-3333-4333-8333-333333333348:{\"error_code\":\"CONTENT_REJECTED\",\"error_message\":\"provider rejected the image\",\"error_type\":\"provider_rejected\",\"provider_http_status\":422,\"status\":\"failed\"}:at=2026-07-17T00:15:01.000Z",
+          "signed.person:11111111-1111-4111-8111-111111111111/person.jpg"
+        ]
+      }
+    }
+  ]
+}

@@ -27,5 +27,8 @@ jobs:
       - name: Run tests
         run: npm run test
 
+      - name: Run deterministic Try-On cases
+        run: npm run try-on:cases -- --json
+
       - name: Run lint
         run: npm run lint
