@@ -203,6 +203,21 @@ npm run dev
 4. 換不同商品湊滿當日 3 次 → 再生成會被「每日上限」擋下
 5. 約 4MB、8MB 圖片可直傳；txt 或超過 8MB 的檔案會在送出前得到可操作的錯誤訊息
 
+### Deterministic Try-On 固定案例
+
+`fixtures/try-on-cases/cases.v1.json` 保存 16 個 versioned golden cases；CLI 透過固定時間、ID、seed、in-memory DB／Storage／Provider 執行正式的 Workflow core，不會連線 Supabase、真實 Storage、VTO Provider 或外部網路。
+
+```bash
+# 執行全部案例
+npm run try-on:cases
+
+# 執行單一案例，或輸出穩定 JSON
+npm run try-on:cases -- --case poll-processing-then-success
+npm run try-on:cases -- --json
+```
+
+相同 commit 與參數的 JSON 輸出可 byte-for-byte 重現；golden 不提供自動更新模式，任何變更都必須人工審查 fixture diff。
+
 ## 購物車跨裝置驗證
 
 1. 在未登入瀏覽器選擇商品尺寸並加入購物車；重新整理 `/cart`，內容應保留。
@@ -228,6 +243,7 @@ src/
 ├── components/         # 試穿、CartProvider、結帳、訂單、客服與帳戶互動元件
 ├── lib/
 │   ├── vto/、enhance/  # VTO provider 與選配結果圖放大抽象層
+│   ├── try-on/         # production Workflow、可注入 core 與 deterministic scenario runner
 │   ├── cart*.ts、orders*.ts、mock-payments.ts # 購物車、結帳／訂單與付款商業規則
 │   ├── support.ts、risk.ts、staff.ts、retention.ts、notifications.ts # V1 營運服務
 │   ├── supabase/       # browser/server/proxy SSR Auth clients
@@ -235,13 +251,15 @@ src/
 └── proxy.ts             # 更新 Supabase SSR session
 supabase/migrations/               # 001–012：核心、會員、購物車、結帳、付款、庫存與 V1 營運
 supabase/tests/                    # Supabase RLS／權限安全檢查
+fixtures/try-on-cases/             # 16 個 versioned deterministic golden cases
+scripts/run-try-on-cases.ts        # 固定案例 CLI entrypoint
 vercel.json                         # 通知派送與資料保留 Cron
-.github/workflows/ci.yml            # push／PR 的 test + lint
+.github/workflows/ci.yml            # push／PR 的 test + deterministic cases + lint
 ```
 
 ## CI
 
-GitHub Actions 會在 push 與 pull request 時使用 `npm ci` 依鎖檔安裝套件，接著執行 `npm run test` 與 `npm run lint`。測試完全離線，不需在 CI 設定 Supabase、VTO 或 Email 憑證。
+GitHub Actions 會在 push 與 pull request 時使用 `npm ci` 依鎖檔安裝套件，接著執行 `npm run test`、`npm run try-on:cases -- --json` 與 `npm run lint`。測試完全離線，不需在 CI 設定 Supabase、VTO 或 Email 憑證。
 
 ## 未來擴充（刻意不在第一版做）
 

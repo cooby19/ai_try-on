@@ -46,6 +46,10 @@ src/
 │   │   ├── enhancer.ts         # ImageEnhancer 介面（結果圖放大後處理）
 │   │   ├── realesrgan.ts       # Real-ESRGAN 2× 放大 adapter（Replicate API）
 │   │   └── index.ts            # enhancer factory + 降級策略（ENHANCE_PROVIDER，預設 none）
+│   ├── try-on/
+│   │   ├── workflow.ts         # server-only production dependencies 與既有公開 exports
+│   │   ├── workflow-core.ts    # Route 與固定案例共用的可注入生成編排
+│   │   └── scenario-runner.ts  # 完全離線的 deterministic in-memory harness
 │   ├── supabase.ts             # service role client + 不透明短效圖片 URL（僅限後端）
 │   ├── quota.ts                # 額度檢查與 try_on_jobs 讀寫
 │   ├── user.ts                 # Supabase Auth session 使用者驗證
@@ -57,13 +61,15 @@ src/
 ├── proxy.ts                     # 更新 Supabase SSR session
 supabase/migrations/              # 001–012：核心、會員、購物車、結帳、付款、庫存與 V1 營運
 supabase/tests/                   # Supabase RLS／權限安全檢查
+fixtures/try-on-cases/            # 16 個 versioned golden scenarios
+scripts/run-try-on-cases.ts       # deterministic CLI entrypoint
 public/garments/                  # 種子商品的上衣圖（SVG / JPG）
 public/samples/sample-person.jpg  # 測試用人物照
 .claude/launch.json               # preview 用 dev server 設定（npm run dev，port 3000）
 vitest.config.ts                  # Vitest 設定（node 環境、@/* alias）
 eslint.config.mjs                 # ESLint flat config（eslint-config-next）
 vercel.json                        # 通知派送與資料保留 Cron
-.github/workflows/ci.yml           # push／PR 的 test + lint
+.github/workflows/ci.yml           # push／PR 的 test + deterministic cases + lint
 ```
 
 單元測試檔大多與被測檔同層；另有 `src/app/api/**/*.test.ts` 驗證 Route Handler 的認證與輸入邊界。上面的樹狀圖省略未列。
@@ -176,9 +182,9 @@ vercel.json                        # 通知派送與資料保留 Cron
 | 圖片處理 | sharp | 轉正、壓縮、SVG 點陣化、mock 合成 |
 | 資料庫 / 儲存 | Supabase（`@supabase/supabase-js`） | Postgres + 私有 Storage bucket；只用 service role key，於後端使用 |
 | AI 生成 | 可替換的 VTO provider | `fashn` 是安全預設（`tryon-v1.6`）；`fashn-max` 與它共用 `FASHN_API_KEY`，使用者可於 v1.6 / Max 間切換；`mock` 必須明確設定，僅用於展示流程 |
-| 測試 | Vitest 4 | `npm run test`；測試檔為 `src/**/*.test.ts`，含 lib 與 Route Handler 測試，node 環境，完全離線（mock Supabase 與 fetch，不花 API 錢） |
+| 測試 | Vitest 4 + deterministic CLI | `npm run test`；`npm run try-on:cases` 執行 16 個固定生成案例。兩者皆完全離線，不花 API 錢 |
 | Lint | ESLint 9（flat config） | `npm run lint`；`eslint-config-next` 的 core-web-vitals + typescript 設定。**Next.js 16 已移除 `next lint`**，一律走 ESLint CLI |
-| CI | GitHub Actions | `.github/workflows/ci.yml` 在 push／pull request 以 Node 22 執行 `npm ci`、`npm run test`、`npm run lint` |
+| CI | GitHub Actions | `.github/workflows/ci.yml` 在 push／pull request 以 Node 22 執行 `npm ci`、`npm run test`、`npm run try-on:cases -- --json`、`npm run lint` |
 | 部署／排程 | Vercel | `vercel.json` 設定通知派送與資料保留的內部 Cron 路由；完整上線規則見 `docs/DEPLOY_VERCEL.md`、`docs/V1_OPERATIONS.md` |
 
 ### 4.1 環境變數（`.env.local`，範本見 `.env.local.example`）
@@ -220,9 +226,9 @@ vercel.json                        # 通知派送與資料保留 Cron
 - **圖片**：目前使用原生 `<img>` 搭配 `eslint-disable` 註解（未使用 `next/image`），新增圖片時沿用此慣例即可。
 - **Commit 風格**：Conventional Commits 前綴 + 繁體中文描述，例：`feat: AI 虛擬試衣 MVP（上衣受控替換）`。
 - **常數位置**：額度規則在 `src/lib/quota.ts`（`DAILY_GENERATION_LIMIT`、`PER_PRODUCT_RETRY_LIMIT`）；照片限制在 `src/lib/validation.ts`；輪詢間隔在 `TryOnLauncher.tsx`。調整規則直接改常數，不要散落新數字。
-- **測試**：Vitest（`npm run test` 一次執行、`npm run test:watch` 監看模式），設定在 `vitest.config.ts`。涵蓋額度、圖片驗證、VTO／enhance adapter、購物車與訂單商業規則、Mock Payment，以及 upload／try-on／auth／cart Route Handler 邊界。測試完全離線：Supabase 用 `vi.mock`、外部 API 用 mock fetch，不碰真實服務也不花錢。
+- **測試**：Vitest（`npm run test` 一次執行、`npm run test:watch` 監看模式），設定在 `vitest.config.ts`。`npm run try-on:cases` 另以固定時間、ID、seed、DB／Storage／Provider 跑 16 個 versioned golden scenarios，可用 `--case <id>` 或 `--json`；兩套測試都完全離線，不碰真實服務也不花錢。
 - **Lint**：ESLint（`npm run lint`），flat config 在 `eslint.config.mjs`。底線開頭的參數視為刻意未使用；規則誤判或介面保留參數時，沿用「附繁中理由的 `eslint-disable` 註解」慣例（見 `TryOnLauncher.tsx`、`AddToCartButton.tsx`），不要整條規則關掉。
-- **CI/CD**：GitHub Actions 在每個 push 與 pull request 以 Node 22 執行 `npm ci`、`npm run test`、`npm run lint`。端到端與 Supabase migration／RLS 驗證仍需依 README、`docs/DEPLOY_VERCEL.md` 與 `docs/V1_OPERATIONS.md` 的清單手動驗證。
+- **CI/CD**：GitHub Actions 在每個 push 與 pull request 以 Node 22 執行 `npm ci`、`npm run test`、`npm run try-on:cases -- --json`、`npm run lint`。端到端與 Supabase migration／RLS 驗證仍需依 README、`docs/DEPLOY_VERCEL.md` 與 `docs/V1_OPERATIONS.md` 的清單手動驗證。
 - **部署方式**：目標平台為 Vercel；`vercel.json` 已定義通知派送與資料保留 Cron。部署前必須遵循 `docs/DEPLOY_VERCEL.md` 與 `docs/V1_OPERATIONS.md`，且不能把 Mock Payment 當作正式金流。
 
 ## 6. AI 協作注意事項
@@ -290,7 +296,7 @@ vercel.json                        # 通知派送與資料保留 Cron
 - **資料保留工作需受控部署**：`vercel.json` 已排程照片、通知與營運資料的保留工作，但正式啟用前仍須依 `docs/V1_OPERATIONS.md` 完成 staging 演練；目前沒有臉部模糊或 GDPR 式資料匯出。
 - **時區寫死台北（UTC+8）**：`quota.ts` 的「每日」邊界。
 - **mock provider 只是視覺合成**：人物照 + 上衣縮圖 + 「MOCK 預覽」浮水印，非真實 AI 效果。
-- **CI 只涵蓋離線 test + lint**：push／PR 會執行現有 Vitest 測試與 ESLint；不會取代需要真實 Supabase、Cron、Email、金流供應商的 staging 驗證。
+- **CI 只涵蓋離線 test + deterministic cases + lint**：push／PR 會執行 Vitest、16 個固定 Workflow 案例與 ESLint；不會取代需要真實 Supabase、Cron、Email、金流供應商的 staging 驗證。
 - **Mock Payment 不是正式金流**：正式對外收款、退款與 Webhook 驗證仍需選定並整合真實金流供應商。
 
 ## 8. 後續開發建議
