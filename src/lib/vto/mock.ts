@@ -2,7 +2,7 @@
 // 在本機就能跑通。送出後約 3 秒「完成」，結果圖 = 人物照 + 上衣縮圖 + 「MOCK 預覽」浮水印，
 // 方便 demo 時看得出「這張是生成結果」。
 import sharp from "sharp";
-import type { VTOProvider, VTOSubmitInput, VTOStatusResult } from "./provider";
+import type { VTOImageInput, VTOProvider, VTOSubmitInput, VTOStatusResult } from "./provider";
 
 const MOCK_DELAY_MS = 3000;
 
@@ -12,15 +12,22 @@ export class MockVTOProvider implements VTOProvider {
   requiresImagesOnPoll = true; // 合成結果圖時需要原始人物照與上衣圖
 
   async submit(_input: VTOSubmitInput): Promise<{ providerJobId: string }> {
+    if (_input.generationConfig.providerName !== "mock") {
+      throw new Error("Mock provider 收到不相符的 generation config");
+    }
     // 把送出時間編進任務 ID，checkStatus 就不需要在記憶體裡存狀態
     // （serverless 環境下每次請求可能是不同 process）
     return { providerJobId: `mock_${Date.now()}` };
   }
 
-  async checkStatus(providerJobId: string, ctx?: VTOSubmitInput): Promise<VTOStatusResult> {
+  async checkStatus(providerJobId: string, ctx?: VTOImageInput): Promise<VTOStatusResult> {
     const submittedAt = Number(providerJobId.replace("mock_", ""));
     if (!Number.isFinite(submittedAt) || !ctx) {
-      return { status: "failed", errorMessage: "mock 任務資料不完整，請重新生成一次。" };
+      return {
+        status: "failed",
+        errorMessage: "mock 任務資料不完整，請重新生成一次。",
+        errorCode: "PROVIDER_REJECTED",
+      };
     }
     if (Date.now() - submittedAt < MOCK_DELAY_MS) {
       return { status: "processing" };

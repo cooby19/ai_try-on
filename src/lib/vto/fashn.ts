@@ -2,7 +2,13 @@
 // 流程：POST /v1/run 送出任務 → GET /v1/status/{id} 輪詢 → completed 後下載結果圖。
 // API key 只從環境變數讀取，只存在於後端。
 import { toBase64DataUri } from "../images";
-import type { VTOProvider, VTOSubmitInput, VTOStatusResult } from "./provider";
+import {
+  VTOProviderError,
+  type VTOImageInput,
+  type VTOProvider,
+  type VTOSubmitInput,
+  type VTOStatusResult,
+} from "./provider";
 
 const FASHN_API_BASE = "https://api.fashn.ai/v1";
 
@@ -20,6 +26,10 @@ export class FashnVTOProvider implements VTOProvider {
   }
 
   async submit(input: VTOSubmitInput): Promise<{ providerJobId: string }> {
+    if (input.generationConfig.providerName !== "fashn") {
+      throw new Error("FASHN v1.6 收到不相符的 generation config");
+    }
+    const config = input.generationConfig;
     const res = await fetch(`${FASHN_API_BASE}/run`, {
       method: "POST",
       headers: {
@@ -28,40 +38,52 @@ export class FashnVTOProvider implements VTOProvider {
       },
       body: JSON.stringify({
         // FASHN 新版 API 格式：model_name + inputs（2025 改版）
-        model_name: "tryon-v1.6",
+        model_name: config.modelName,
         inputs: {
           // FASHN 支援 base64 data URI，因此不需要提供公開圖片網址
           model_image: toBase64DataUri(input.personImage, "image/jpeg"),
           garment_image: toBase64DataUri(input.garmentImage, "image/png"),
-          category: input.garmentType, // "tops"
+          category: config.inputs.category,
           // quality 與 balanced 在 v1.6 同價（皆 1 credit/張），是零成本的品質升級；
           // quality 約 12–17 秒，仍在前端 120 秒輪詢上限內。
-          mode: "quality",
-          // 每次送出都用隨機 seed：FASHN 預設固定 seed=42，會讓「重新生成」每次
-          // 產出同一張圖、白白扣額度。隨機 seed（0 ~ 2^32-1）讓重試能拿到不同結果。
-          seed: Math.floor(Math.random() * 2 ** 32),
+          mode: config.inputs.mode,
+          seed: config.seed,
           // 商品圖都是平拍去背圖，明示 flat-lay 比讓 auto 自行猜測更穩定。
-          garment_photo_type: "flat-lay",
+          garment_photo_type: config.inputs.garmentPhotoType,
+          num_samples: config.inputs.outputCount,
           // 明示輸出 JPEG，與後端儲存的 contentType: "image/jpeg" 一致（預設會回 PNG）。
-          output_format: "jpeg",
+          output_format: config.inputs.outputFormat,
         },
       }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`FASHN API 回應 ${res.status}：${body.slice(0, 300)}`);
+      throw new VTOProviderError(
+        `FASHN API 回應 ${res.status}：${body.slice(0, 300)}`,
+        "provider_submit",
+        res.status,
+      );
     }
     const data = (await res.json()) as { id?: string; error?: string };
     if (!data.id) {
-      throw new Error(`FASHN API 未回傳任務 ID：${data.error ?? "unknown"}`);
+      throw new VTOProviderError(
+        `FASHN API 未回傳任務 ID：${data.error ?? "unknown"}`,
+        "provider_submit",
+      );
     }
     return { providerJobId: data.id };
   }
 
-  async checkStatus(providerJobId: string, _ctx?: VTOSubmitInput): Promise<VTOStatusResult> {
-    const res = await fetch(`${FASHN_API_BASE}/status/${providerJobId}`, {
-      headers: { Authorization: `Bearer ${this.apiKey}` },
-    });
+  async checkStatus(providerJobId: string, _ctx?: VTOImageInput): Promise<VTOStatusResult> {
+    const apiKey = this.apiKey;
+    let res: Response;
+    try {
+      res = await fetch(`${FASHN_API_BASE}/status/${providerJobId}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+    } catch (cause) {
+      throw new VTOProviderError("FASHN 狀態查詢失敗，請稍後再試一次。", "provider_poll", undefined, { cause });
+    }
     if (!res.ok) {
       // 單次狀態查詢失敗（429 rate limit、5xx 瞬斷等）不代表任務失敗——
       // FASHN 端任務可能已完成且已計費，此時標 failed 會報廢已付費的結果。
@@ -77,7 +99,17 @@ export class FashnVTOProvider implements VTOProvider {
     };
 
     if (data.status === "completed" && data.output?.[0]) {
-      const imageRes = await fetch(data.output[0]);
+      let imageRes: Response;
+      try {
+        imageRes = await fetch(data.output[0]);
+      } catch (cause) {
+        throw new VTOProviderError(
+          "AI 結果圖下載失敗，請稍後再試一次。",
+          "provider_output_download",
+          undefined,
+          { cause },
+        );
+      }
       if (!imageRes.ok) {
         // CDN 偶發失敗：任務其實已完成，下次輪詢會重新拿到 completed 狀態
         // （含可能刷新的 output URL）再重試下載，不要因單次下載失敗報廢結果。
@@ -88,7 +120,7 @@ export class FashnVTOProvider implements VTOProvider {
     }
     if (data.status === "failed") {
       const raw = typeof data.error === "string" ? data.error : data.error?.message ?? "";
-      return { status: "failed", errorMessage: mapFashnError(raw) };
+      return { status: "failed", errorMessage: mapFashnError(raw), errorCode: "PROVIDER_REJECTED" };
     }
     return { status: "processing" };
   }

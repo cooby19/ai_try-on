@@ -64,6 +64,57 @@ describe("POST /api/try-on Workflow 契約", () => {
     });
   });
 
+  it("選填 Idempotency-Key 只交給 Workflow，首次與 replay 成功 JSON 均不新增欄位", async () => {
+    vi.mocked(startTryOnWorkflow).mockResolvedValue({
+      ok: true,
+      jobId: JOB_ID,
+      status: "processing",
+      costEstimate: 0.075,
+      remainingToday: 2,
+    });
+    const response = await POST(
+      new Request("https://example.com/api/try-on", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "request-123",
+        },
+        body: JSON.stringify({ productId: PRODUCT_ID, personImagePath: PERSON_PATH }),
+      }),
+    );
+
+    expect(startTryOnWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: "request-123" }),
+    );
+    expect(await response.json()).toEqual({
+      jobId: JOB_ID,
+      status: "processing",
+      costEstimate: 0.075,
+      remainingToday: 2,
+    });
+  });
+
+  it("同 key 不同 fingerprint 只新增穩定 409 映射", async () => {
+    vi.mocked(startTryOnWorkflow).mockResolvedValue({
+      ok: false,
+      code: "idempotency_conflict",
+      message: "此 Idempotency-Key 已用於不同的試穿請求，請更換 key 後重試。",
+    });
+    const response = await POST(
+      new Request("https://example.com/api/try-on", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "request-123" },
+        body: JSON.stringify({ productId: PRODUCT_ID, personImagePath: PERSON_PATH }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      status: "failed",
+      message: "此 Idempotency-Key 已用於不同的試穿請求，請更換 key 後重試。",
+    });
+  });
+
   const failures: Array<{
     name: string;
     result: Exclude<StartTryOnWorkflowResult, { ok: true }>;

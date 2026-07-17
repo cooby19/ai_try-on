@@ -3,6 +3,7 @@
 // checkStatus 的分支測試用 mock fetch 完全離線執行，不會真的打 FASHN API、不花錢。
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FashnVTOProvider, mapFashnError } from "@/lib/vto/fashn";
+import { resolveTryOnConfig } from "@/lib/try-on/config";
 
 describe("mapFashnError：錯誤轉譯", () => {
   it.each([
@@ -80,6 +81,7 @@ describe("FashnVTOProvider.submit：請求格式", () => {
       personImage: Buffer.from([1]),
       garmentImage: Buffer.from([2]),
       garmentType: "tops",
+      generationConfig: resolveTryOnConfig("fashn", 123).provider,
     });
     expect(result).toEqual({ providerJobId: "job-xyz" });
 
@@ -95,30 +97,24 @@ describe("FashnVTOProvider.submit：請求格式", () => {
     expect(inputs.category).toBe("tops");
   });
 
-  it("每次送出帶隨機整數 seed（0 ~ 2^32-1），避免重新生成產出同一張圖", async () => {
+  it("使用 Workflow 傳入的 seed，adapter 不再自行呼叫 Math.random", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ id: "job-xyz" }),
     } as unknown as Response);
 
     const provider = new FashnVTOProvider();
-    const input = {
-      personImage: Buffer.from([1]),
-      garmentImage: Buffer.from([2]),
-      garmentType: "tops" as const,
-    };
-    await provider.submit(input);
-    const seedA = lastSubmitInputs().seed as number;
-    await provider.submit(input);
-    const seedB = lastSubmitInputs().seed as number;
-
-    for (const seed of [seedA, seedB]) {
-      expect(Number.isInteger(seed)).toBe(true);
-      expect(seed).toBeGreaterThanOrEqual(0);
-      expect(seed).toBeLessThanOrEqual(2 ** 32 - 1);
+    const randomSpy = vi.spyOn(Math, "random");
+    for (const seed of [0, 2 ** 32 - 1]) {
+      await provider.submit({
+        personImage: Buffer.from([1]),
+        garmentImage: Buffer.from([2]),
+        garmentType: "tops",
+        generationConfig: resolveTryOnConfig("fashn", seed).provider,
+      });
+      expect(lastSubmitInputs().seed).toBe(seed);
     }
-    // 兩次送出用不同 seed，才能讓「重新生成」拿到不同結果（FASHN 預設固定 seed=42）
-    expect(seedA).not.toBe(seedB);
+    expect(randomSpy).not.toHaveBeenCalled();
   });
 });
 

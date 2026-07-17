@@ -11,7 +11,9 @@ import {
   checkUploadQuota,
   recordTryOnJob,
   todayStartUtcIso,
+  updateJobStatus,
 } from "@/lib/quota";
+import { resolveTryOnConfig } from "@/lib/try-on/config";
 
 // checkGenerationQuota 只依賴 Supabase 的查詢結果（當日 job 列表），
 // mock 掉 client 之後，額度判斷本身是純邏輯，可以完整離線測試。
@@ -299,14 +301,29 @@ describe("查詢失敗", () => {
 // 這些若被改壞，鎖再正確也會算錯「今天」或放行超額請求。
 // ============================================================
 type RpcResult = {
-  allowed: boolean;
+  outcome: "created" | "replayed" | "conflict" | "rejected";
   reject_reason?: "daily" | "product" | "platform";
   used_today: number;
   product_attempts_today: number;
   job?: Record<string, unknown>;
 };
 
-const rpcJob = { id: "job-new", retry_count: 0, status: "pending" };
+const rpcJob = {
+  id: "job-new",
+  user_id: "user-1",
+  product_id: "p-a",
+  garment_image_url: "/garments/white-tee.svg",
+  provider: "fashn",
+  retry_count: 0,
+  status: "pending",
+  seed: 123,
+  config_snapshot: resolveTryOnConfig("fashn", 123).snapshot,
+  started_at: "2026-07-04T15:59:59.000Z",
+  idempotency_key: null,
+  request_fingerprint: null,
+  created_at: "2026-07-04T15:59:59.000Z",
+  updated_at: "2026-07-04T15:59:59.000Z",
+};
 
 function mockRpc(result: { data: RpcResult | null; error: { message: string } | null }) {
   const rpc = vi.fn().mockResolvedValue(result);
@@ -324,6 +341,9 @@ const recordInput = {
   provider: "fashn",
   costEstimate: 0.075,
   budgetReservation: 0.0775,
+  seed: 123,
+  configSnapshot: resolveTryOnConfig("fashn", 123).snapshot,
+  startedAt: "2026-07-04T15:59:59.000Z",
 };
 
 describe("原子插入：參數 wiring", () => {
@@ -331,7 +351,7 @@ describe("原子插入：參數 wiring", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-04T15:59:59Z")); // 台北 23:59:59，今天從 07-03T16:00Z 起算
     const { rpc } = mockRpc({
-      data: { allowed: true, used_today: 1, product_attempts_today: 0, job: rpcJob },
+      data: { outcome: "created", used_today: 1, product_attempts_today: 0, job: rpcJob },
       error: null,
     });
     await recordTryOnJob(recordInput);
@@ -352,12 +372,13 @@ describe("原子插入：參數 wiring", () => {
 describe("原子插入：勝出與拒絕", () => {
   it("在限內：回傳 job 與「已含自己」的剩餘次數", async () => {
     mockRpc({
-      data: { allowed: true, used_today: 3, product_attempts_today: 0, job: rpcJob },
+      data: { outcome: "created", used_today: 3, product_attempts_today: 0, job: rpcJob },
       error: null,
     });
     const result = await recordTryOnJob(recordInput);
-    expect(result.allowed).toBe(true);
-    expect(result.job?.id).toBe("job-new");
+    expect(result.outcome).toBe("created");
+    if (result.outcome !== "created") throw new Error("預期 created");
+    expect(result.job.id).toBe("job-new");
     expect(result.remainingToday).toBe(0); // used_today = 3 = 上限，自己是最後一格
   });
 
@@ -365,12 +386,12 @@ describe("原子插入：勝出與拒絕", () => {
     // 併發下兩個請求同過前置檢查，advisory lock 序列化後只有先取得鎖者插入成功；
     // 落敗方拿到 reject_reason = 'daily'，從未插入、零成本。
     mockRpc({
-      data: { allowed: false, reject_reason: "daily", used_today: 3, product_attempts_today: 1 },
+      data: { outcome: "rejected", reject_reason: "daily", used_today: 3, product_attempts_today: 1 },
       error: null,
     });
     const result = await recordTryOnJob(recordInput);
-    expect(result.allowed).toBe(false);
-    expect(result.job).toBeUndefined();
+    expect(result.outcome).toBe("rejected");
+    if (result.outcome !== "rejected") throw new Error("預期 rejected");
     // 文案必須與前置檢查一字不差（前端與使用者看到一致的訊息）
     expect(result.reason).toContain(`${DAILY_GENERATION_LIMIT} 次`);
     expect(result.reason).toContain("明天");
@@ -381,23 +402,50 @@ describe("原子插入：勝出與拒絕", () => {
     // 目前兩個上限同為 3，這個分支要靠 DB 端先判 daily 才輪得到；
     // 釘住文案對應本身（reject_reason → reason），未來調整常數時分支仍正確。
     mockRpc({
-      data: { allowed: false, reject_reason: "product", used_today: 3, product_attempts_today: 3 },
+      data: { outcome: "rejected", reject_reason: "product", used_today: 3, product_attempts_today: 3 },
       error: null,
     });
     const result = await recordTryOnJob(recordInput);
-    expect(result.allowed).toBe(false);
+    expect(result.outcome).toBe("rejected");
+    if (result.outcome !== "rejected") throw new Error("預期 rejected");
     expect(result.reason).toContain(`${PER_PRODUCT_RETRY_LIMIT} 次`);
     expect(result.reason).toContain("其他商品");
   });
 
   it("平台預算熔斷：拒絕且不建立可計費 job", async () => {
     mockRpc({
-      data: { allowed: false, reject_reason: "platform", used_today: 0, product_attempts_today: 0 },
+      data: { outcome: "rejected", reject_reason: "platform", used_today: 0, product_attempts_today: 0 },
       error: null,
     });
     const result = await recordTryOnJob(recordInput);
-    expect(result.allowed).toBe(false);
+    expect(result.outcome).toBe("rejected");
+    if (result.outcome !== "rejected") throw new Error("預期 rejected");
     expect(result.reason).toContain("平台安全預算");
+  });
+
+  it.each(["replayed", "conflict"] as const)("RPC outcome=%s 可被明確區分", async (outcome) => {
+    const fingerprint = "a".repeat(64);
+    mockRpc({
+      data: {
+        outcome,
+        used_today: 1,
+        product_attempts_today: 0,
+        job: {
+          ...rpcJob,
+          idempotency_key: "request-123",
+          request_fingerprint: outcome === "conflict" ? "b".repeat(64) : fingerprint,
+        },
+      },
+      error: null,
+    });
+    const result = await recordTryOnJob({
+      ...recordInput,
+      idempotencyKey: "request-123",
+      requestFingerprint: fingerprint,
+    });
+    expect(result.outcome).toBe(outcome);
+    if (result.outcome === "rejected") throw new Error("不應 rejected");
+    expect(result.job.id).toBe("job-new");
   });
 });
 
@@ -414,11 +462,75 @@ describe("原子插入：fail-closed", () => {
     await expect(recordTryOnJob(recordInput)).rejects.toThrow(/格式異常/);
   });
 
-  it("allowed = true 卻沒有 job：throw（沒有任務列就無法輪詢，也代表函式已被改壞）", async () => {
+  it("outcome = created 卻沒有 job：throw（沒有任務列就無法輪詢，也代表函式已被改壞）", async () => {
     mockRpc({
-      data: { allowed: true, used_today: 1, product_attempts_today: 0 },
+      data: { outcome: "created", used_today: 1, product_attempts_today: 0 },
       error: null,
     });
     await expect(recordTryOnJob(recordInput)).rejects.toThrow(/未回傳任務資料/);
+  });
+
+  it("outcome/counter/job runtime shape 任一異常都 fail-closed", async () => {
+    mockRpc({
+      data: {
+        outcome: "created",
+        used_today: -1,
+        product_attempts_today: 0,
+        job: rpcJob,
+      },
+      error: null,
+    });
+    await expect(recordTryOnJob(recordInput)).rejects.toThrow(/格式異常/);
+  });
+});
+
+describe("Job lifecycle 時間與終態冪等", () => {
+  function mockStatusUpdate() {
+    const terminalIn = vi.fn().mockResolvedValue({ error: null });
+    const eq = vi.fn().mockReturnValue({ in: terminalIn, then: undefined });
+    const update = vi.fn().mockReturnValue({ eq });
+    const from = vi.fn().mockReturnValue({ update });
+    vi.mocked(getSupabaseAdmin).mockReturnValue({ from } as unknown as ReturnType<typeof getSupabaseAdmin>);
+    return { update, eq, terminalIn };
+  }
+
+  it("provider accepted 寫 provider_submitted_at，但 processing 不寫 completed_at", async () => {
+    const database = mockStatusUpdate();
+    const eventAt = "2026-07-17T01:00:02.000Z";
+    await updateJobStatus(
+      "job-1",
+      { status: "processing", provider_job_id: "provider-1" },
+      eventAt,
+    );
+    expect(database.update).toHaveBeenCalledWith({
+      status: "processing",
+      provider_job_id: "provider-1",
+      provider_submitted_at: eventAt,
+      updated_at: eventAt,
+    });
+    expect(database.terminalIn).toHaveBeenCalledWith("status", ["pending", "processing"]);
+  });
+
+  it.each(["success", "failed"] as const)("%s 寫 completed_at 並只更新非終態", async (status) => {
+    const database = mockStatusUpdate();
+    const eventAt = "2026-07-17T01:00:03.000Z";
+    await updateJobStatus("job-1", { status }, eventAt);
+    expect(database.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status, completed_at: eventAt, updated_at: eventAt }),
+    );
+    expect(database.terminalIn).toHaveBeenCalledWith("status", ["pending", "processing"]);
+  });
+
+  it("success 清除所有結構化錯誤欄位", async () => {
+    const database = mockStatusUpdate();
+    await updateJobStatus("job-1", { status: "success", result_image_url: "result.jpg" }, "2026-07-17T01:00:03.000Z");
+    expect(database.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error_message: null,
+        error_type: null,
+        error_code: null,
+        provider_http_status: null,
+      }),
+    );
   });
 });

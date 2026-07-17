@@ -77,6 +77,7 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
     // 尚在 provider 處理中的工作若只清圖片 path，之後 GET 輪詢可能重新存回結果圖。
     // 將它收斂成 failed 並清 provider_job_id，避免使用者刪除後又產生新檔案。
     const jobStatus = job.status === "pending" || job.status === "processing" ? "failed" : job.status;
+    const updatedAt = new Date().toISOString();
     const { error: updateError } = await supabase
       .from("try_on_jobs")
       .update({
@@ -87,9 +88,12 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
               status: "failed",
               provider_job_id: null,
               error_message: "使用者已刪除照片，未保留處理結果。",
+              error_type: "input_validation",
+              error_code: "SOURCE_IMAGE_DELETED",
+              completed_at: updatedAt,
             }
           : {}),
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       })
       .eq("id", job.id)
       .eq("user_id", userId);

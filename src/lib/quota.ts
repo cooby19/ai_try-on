@@ -8,7 +8,12 @@
 // 這樣「建立 job 紀錄」本身就是 incrementGenerationUsage，不會有計數器與紀錄不同步的問題。
 // 失敗的生成也計入額度（因為已經呼叫過 AI API、產生了成本）。
 import { getSupabaseAdmin, PERSON_BUCKET } from "./supabase";
-import type { JobStatus, TryOnJob } from "./types";
+import type {
+  JobStatus,
+  TryOnConfigSnapshotV1,
+  TryOnErrorType,
+  TryOnJob,
+} from "./types";
 
 export const DAILY_GENERATION_LIMIT = 3;
 export const PER_PRODUCT_RETRY_LIMIT = 2;
@@ -136,20 +141,85 @@ export async function checkGenerationQuota(
   return { allowed: true, usedToday, remainingToday, productAttemptsToday, remainingRetriesForProduct };
 }
 
-export interface TryOnJobCreation {
-  allowed: boolean;
-  reason?: string;
-  remainingToday: number; // 判定後的當日剩餘次數（成功時已把自己算進去）
-  job?: TryOnJob; // allowed = true 時必有值
-}
+export type AtomicJobCreationResult =
+  | { outcome: "created" | "replayed"; remainingToday: number; job: TryOnJob }
+  | { outcome: "conflict"; remainingToday: number; job: TryOnJob }
+  | { outcome: "rejected"; remainingToday: number; reason: string };
 
 // insert_try_on_job_within_quota（migration 005）回傳的 jsonb 形狀。
 interface AtomicInsertResult {
-  allowed: boolean;
+  outcome: "created" | "replayed" | "conflict" | "rejected";
   reject_reason?: "daily" | "product" | "platform";
   used_today: number;
   product_attempts_today: number;
-  job?: TryOnJob;
+  job?: unknown;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseTryOnJob(value: unknown): TryOnJob | null {
+  if (!isRecord(value)) return null;
+  const configSnapshot = value.config_snapshot;
+  const snapshotGeneration = isRecord(configSnapshot) ? configSnapshot.generation : null;
+  if (
+    typeof value.id !== "string" ||
+    typeof value.user_id !== "string" ||
+    typeof value.product_id !== "string" ||
+    typeof value.garment_image_url !== "string" ||
+    typeof value.provider !== "string" ||
+    !["pending", "processing", "success", "failed"].includes(String(value.status)) ||
+    typeof value.retry_count !== "number" ||
+    typeof value.seed !== "number" ||
+    !Number.isInteger(value.seed) ||
+    value.seed < 0 ||
+    value.seed > 4294967295 ||
+    !isRecord(configSnapshot) ||
+    configSnapshot.schemaVersion !== 1 ||
+    !isRecord(snapshotGeneration) ||
+    snapshotGeneration.seed !== value.seed ||
+    typeof value.started_at !== "string" ||
+    !(
+      (value.idempotency_key === null && value.request_fingerprint === null) ||
+      (typeof value.idempotency_key === "string" &&
+        typeof value.request_fingerprint === "string" &&
+        /^[0-9a-f]{64}$/.test(value.request_fingerprint))
+    ) ||
+    typeof value.created_at !== "string" ||
+    typeof value.updated_at !== "string"
+  ) {
+    return null;
+  }
+  return value as unknown as TryOnJob;
+}
+
+function parseAtomicInsertResult(value: unknown): AtomicInsertResult | null {
+  if (!isRecord(value)) return null;
+  if (
+    !["created", "replayed", "conflict", "rejected"].includes(String(value.outcome)) ||
+    typeof value.used_today !== "number" ||
+    !Number.isInteger(value.used_today) ||
+    value.used_today < 0 ||
+    typeof value.product_attempts_today !== "number" ||
+    !Number.isInteger(value.product_attempts_today) ||
+    value.product_attempts_today < 0
+  ) {
+    return null;
+  }
+  if (
+    value.reject_reason !== undefined &&
+    !["daily", "product", "platform"].includes(String(value.reject_reason))
+  ) {
+    return null;
+  }
+  return {
+    outcome: value.outcome as AtomicInsertResult["outcome"],
+    reject_reason: value.reject_reason as AtomicInsertResult["reject_reason"],
+    used_today: value.used_today,
+    product_attempts_today: value.product_attempts_today,
+    job: value.job,
+  };
 }
 
 // 建立 try_on_jobs 紀錄（同時就是額度的 +1），額度檢查與插入在 DB 端原子完成。
@@ -169,7 +239,12 @@ export async function recordTryOnJob(input: {
   provider: string;
   costEstimate: number;
   budgetReservation: number;
-}): Promise<TryOnJobCreation> {
+  seed: number;
+  configSnapshot: TryOnConfigSnapshotV1;
+  startedAt: string;
+  idempotencyKey?: string;
+  requestFingerprint?: string;
+}): Promise<AtomicJobCreationResult> {
   const supabase = getSupabaseAdmin();
   const rpcArgs = {
     p_user_id: input.userId,
@@ -183,22 +258,27 @@ export async function recordTryOnJob(input: {
     p_daily_limit: DAILY_GENERATION_LIMIT,
     p_product_attempt_limit: 1 + PER_PRODUCT_RETRY_LIMIT,
     p_platform_daily_budget: platformDailyBudgetUsd(),
+    p_seed: input.seed,
+    p_config_snapshot: input.configSnapshot,
+    p_started_at: input.startedAt,
+    p_idempotency_key: input.idempotencyKey ?? null,
+    p_request_fingerprint: input.requestFingerprint ?? null,
   };
   const { data, error } = await supabase.rpc("insert_try_on_job_within_quota", rpcArgs);
   if (error) throw new Error(`建立試穿任務失敗：${error.message}`);
 
   // 回傳形狀不符（如 migration 004 尚未執行、或函式被改壞）一律 throw，
   // 不能默默當成功或當額度充足放行（fail-closed，與額度查詢失敗同一原則）。
-  const result = data as AtomicInsertResult | null;
-  if (!result || typeof result.allowed !== "boolean") {
-    throw new Error("建立試穿任務失敗：額度函式回傳格式異常（請確認 migration 005 已執行）。");
+  const result = parseAtomicInsertResult(data);
+  if (!result) {
+    throw new Error("建立試穿任務失敗：額度函式回傳格式異常（請確認最新 migration 已執行）。");
   }
 
-  if (!result.allowed) {
+  if (result.outcome === "rejected") {
     // 拒絕文案由程式端對應（daily / product / platform），
     // 使用者在兩條路徑看到一字不差的訊息。
     return {
-      allowed: false,
+      outcome: "rejected",
       reason:
         result.reject_reason === "product"
           ? productLimitReason()
@@ -208,14 +288,43 @@ export async function recordTryOnJob(input: {
       remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - result.used_today),
     };
   }
-  if (!result.job) {
+  const job = parseTryOnJob(result.job);
+  if (!job) {
     throw new Error("建立試穿任務失敗：額度函式未回傳任務資料。");
   }
+  const expectedKey = input.idempotencyKey ?? null;
+  const expectedFingerprint = input.requestFingerprint ?? null;
+  const idempotencyIdentityMatches =
+    job.idempotency_key === expectedKey &&
+    (result.outcome === "conflict"
+      ? job.request_fingerprint !== expectedFingerprint
+      : job.request_fingerprint === expectedFingerprint);
+  if (!idempotencyIdentityMatches) {
+    throw new Error("建立試穿任務失敗：額度函式回傳的冪等身分不相符。");
+  }
   return {
-    allowed: true,
-    job: result.job,
+    outcome: result.outcome,
+    job,
     remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - result.used_today),
   };
+}
+
+export async function findTryOnJobByIdempotency(
+  userId: string,
+  idempotencyKey: string,
+): Promise<TryOnJob | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("try_on_jobs")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+  if (error) throw new Error(`查詢冪等任務失敗：${error.message}`);
+  if (data === null) return null;
+  const job = parseTryOnJob(data);
+  if (!job) throw new Error("查詢冪等任務失敗：資料格式異常。");
+  return job;
 }
 
 export async function updateJobStatus(
@@ -224,13 +333,35 @@ export async function updateJobStatus(
     status: JobStatus;
     provider_job_id: string;
     result_image_url: string;
-    error_message: string;
-  }>
+    error_message: string | null;
+    error_type: TryOnErrorType | null;
+    error_code: string | null;
+    provider_http_status: number | null;
+    last_polled_at: string;
+  }>,
+  eventAt = new Date().toISOString(),
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase
+  const lifecycleFields: Record<string, unknown> = {};
+  if (fields.status === "processing" && fields.provider_job_id) {
+    lifecycleFields.provider_submitted_at = eventAt;
+  }
+  if (fields.status === "success" || fields.status === "failed") {
+    lifecycleFields.completed_at = eventAt;
+  }
+  if (fields.status === "success") {
+    lifecycleFields.error_message = null;
+    lifecycleFields.error_type = null;
+    lifecycleFields.error_code = null;
+    lifecycleFields.provider_http_status = null;
+  }
+
+  let query = supabase
     .from("try_on_jobs")
-    .update({ ...fields, updated_at: new Date().toISOString() })
+    .update({ ...fields, ...lifecycleFields, updated_at: eventAt })
     .eq("id", jobId);
+  // 只有非終態可轉成 processing/success/failed；併發重複輪詢不會覆寫首次 completed_at。
+  if (fields.status) query = query.in("status", ["pending", "processing"]);
+  const { error } = await query;
   if (error) throw new Error(`更新任務狀態失敗：${error.message}`);
 }

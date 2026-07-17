@@ -13,6 +13,63 @@ export type AccountDeletionRequestStatus =
 // 對外與對內的映射由後端白名單控制（見 src/lib/vto/index.ts），前端無法注入任意 provider。
 export type TryOnModel = "v1.6" | "max";
 
+export type TryOnErrorType =
+  | "input_validation"
+  | "authorization"
+  | "product_lookup"
+  | "quota"
+  | "person_image_read"
+  | "garment_image_read"
+  | "provider_submit"
+  | "provider_poll"
+  | "provider_rejected"
+  | "provider_output_download"
+  | "enhancement"
+  | "result_storage"
+  | "database"
+  | "timeout"
+  | "internal";
+
+export interface TryOnConfigSnapshotV1 {
+  schemaVersion: 1;
+  provider: {
+    name: "fashn" | "fashn-max" | "mock";
+    modelName: "tryon-v1.6" | "tryon-max" | "mock";
+    mode: "quality" | "balanced" | null;
+    resolution: "1k" | null;
+    outputFormat: "jpeg";
+    outputCount: 1;
+  };
+  generation: {
+    seed: number;
+    garmentType: "tops" | null;
+    garmentPhotoType: "flat-lay" | null;
+  };
+  preprocessing: {
+    personImage: {
+      version: "person-image-v1";
+      maxWidth: 1440;
+      outputFormat: "jpeg";
+      jpegQuality: 92;
+    };
+    garmentImage: {
+      version: "garment-image-v1";
+      maxWidth: 1024;
+      outputFormat: "png";
+    };
+  };
+  enhancement: {
+    provider: "none" | "realesrgan";
+    modelVersion: string | null;
+    scale: 2 | null;
+  };
+  prompt: {
+    version: "none";
+    hash: null;
+    value: "" | null;
+  };
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -236,6 +293,17 @@ export interface TryOnJob {
   budget_reservation: number;
   retry_count: number;
   error_message: string | null;
+  config_snapshot: TryOnConfigSnapshotV1 | Record<string, never>;
+  seed: number | null;
+  started_at: string | null;
+  provider_submitted_at: string | null;
+  completed_at: string | null;
+  last_polled_at: string | null;
+  error_type: TryOnErrorType | null;
+  error_code: string | null;
+  provider_http_status: number | null;
+  idempotency_key: string | null;
+  request_fingerprint: string | null;
   created_at: string;
   updated_at: string;
 }

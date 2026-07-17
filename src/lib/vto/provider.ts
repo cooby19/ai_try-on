@@ -6,16 +6,36 @@
 //
 // 要新增 provider（例如 fal.ai）：實作這個介面，然後在 index.ts 的 factory 註冊即可。
 
-export interface VTOSubmitInput {
+import type { ResolvedProviderGenerationConfig } from "../try-on/config";
+
+export interface VTOImageInput {
   personImage: Buffer;  // 人物照（已由後端正規化為 JPEG）
   garmentImage: Buffer; // 上衣圖（PNG）
   garmentType: "tops";  // 第一版只支援上衣
 }
 
+export interface VTOSubmitInput extends VTOImageInput {
+  generationConfig: ResolvedProviderGenerationConfig;
+}
+
 export type VTOStatusResult =
   | { status: "processing" }
   | { status: "success"; resultImage: Buffer }
-  | { status: "failed"; errorMessage: string };
+  | { status: "failed"; errorMessage: string; errorCode?: string; providerHttpStatus?: number };
+
+export type VTOProviderErrorStage = "provider_submit" | "provider_poll" | "provider_output_download";
+
+export class VTOProviderError extends Error {
+  constructor(
+    message: string,
+    public readonly stage: VTOProviderErrorStage,
+    public readonly httpStatus?: number,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "VTOProviderError";
+  }
+}
 
 export interface VTOProvider {
   providerName: string;
@@ -29,5 +49,5 @@ export interface VTOProvider {
   submit(input: VTOSubmitInput): Promise<{ providerJobId: string }>;
 
   // 查詢任務進度。ctx 提供原始圖片，只有 requiresImagesOnPoll = true 的 provider 會收到
-  checkStatus(providerJobId: string, ctx?: VTOSubmitInput): Promise<VTOStatusResult>;
+  checkStatus(providerJobId: string, ctx?: VTOImageInput): Promise<VTOStatusResult>;
 }

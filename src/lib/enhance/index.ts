@@ -1,7 +1,11 @@
 // Enhance factory + 降級策略（比照 src/lib/vto/index.ts 的 provider factory 模式）。
 // route 只呼叫 enhanceResultImage()：要不要放大、放大失敗怎麼辦，全部在這一層決定。
 import type { ImageEnhancer } from "./enhancer";
-import { RealEsrganEnhancer } from "./realesrgan";
+import {
+  REAL_ESRGAN_SCALE,
+  REAL_ESRGAN_VERSION,
+  RealEsrganEnhancer,
+} from "./realesrgan";
 
 // enhance 呼叫的硬逾時：總延遲必須留在前端 120 秒輪詢上限內
 // （v1.6 quality 生成約 12–17 秒 + 放大 ≤30 秒，最壞約 50 秒，餘裕充足）。
@@ -15,6 +19,26 @@ const enhancers: Record<string, () => ImageEnhancer> = {
 // 只有這些 VTO provider 的結果需要放大：fashn（tryon-v1.6）原生固定 864×1296，
 // 有解析度缺口；fashn-max 原生就能出高解析度、mock 是假示範圖，放大只是白花錢。
 const ENHANCE_TARGET_VTO_PROVIDERS = new Set(["fashn"]);
+
+export type ResolvedEnhancementConfig =
+  | { provider: "none"; modelVersion: null; scale: null }
+  | { provider: "realesrgan"; modelVersion: string; scale: 2 };
+
+// Snapshot 與實際 enhancer factory 共用相同環境解析規則，避免記錄與執行漂移。
+export function resolveEnhancementConfig(vtoProviderName: string): ResolvedEnhancementConfig {
+  if (!ENHANCE_TARGET_VTO_PROVIDERS.has(vtoProviderName)) {
+    return { provider: "none", modelVersion: null, scale: null };
+  }
+  const key = (process.env.ENHANCE_PROVIDER ?? "none").toLowerCase();
+  if (key !== "realesrgan") {
+    return { provider: "none", modelVersion: null, scale: null };
+  }
+  return {
+    provider: "realesrgan",
+    modelVersion: REAL_ESRGAN_VERSION,
+    scale: REAL_ESRGAN_SCALE,
+  };
+}
 
 // ENHANCE_PROVIDER 預設 none = 完全停用，行為與加入此功能前完全一致（可直接回滾）。
 // 未知值回 null + 警告而非 throw：enhance 是選配後處理，環境變數打錯字

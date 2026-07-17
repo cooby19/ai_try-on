@@ -18,6 +18,7 @@ export async function POST(req: Request) {
       productId: body?.productId,
       personImagePath: body?.personImagePath,
       requestedModel: body?.model,
+      idempotencyKey: req.headers.get("Idempotency-Key") ?? undefined,
     });
     if (result.ok) {
       return NextResponse.json({
@@ -33,6 +34,9 @@ export async function POST(req: Request) {
     }
     if (result.code === "submission_failed") {
       return jsonError(502, result.message, { jobId: result.jobId });
+    }
+    if (result.code === "idempotency_conflict") {
+      return jsonError(409, result.message);
     }
     const status =
       result.code === "invalid_person_image"
