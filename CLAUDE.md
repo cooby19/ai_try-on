@@ -49,6 +49,9 @@ src/
 │   ├── try-on/
 │   │   ├── workflow.ts         # server-only production dependencies 與既有公開 exports
 │   │   ├── workflow-core.ts    # Route 與固定案例共用的可注入生成編排
+│   │   ├── feature-flags.ts    # server-only env adapter；集中解析 production experiment
+│   │   ├── feature-flags-core.ts # 型別矩陣、HMAC assignment 與離線 forced injection
+│   │   ├── iteration-policy.ts # 可測試的 promotion gate 與停止條件
 │   │   └── scenario-runner.ts  # 完全離線的 deterministic in-memory harness
 │   ├── supabase.ts             # service role client + 不透明短效圖片 URL（僅限後端）
 │   ├── quota.ts                # 額度檢查與 try_on_jobs 讀寫
@@ -59,9 +62,10 @@ src/
 │   ├── validation.ts、images.ts、http.ts      # 圖片驗證／處理與 HTTP 共用工具
 │   └── types.ts                # 資料表與 API view 共用型別
 ├── proxy.ts                     # 更新 Supabase SSR session
-supabase/migrations/              # 001–012：核心、會員、購物車、結帳、付款、庫存與 V1 營運
+supabase/migrations/              # 001–012 + Try-On 可重現性／quota RPC 修正
 supabase/tests/                   # Supabase RLS／權限安全檢查
 fixtures/try-on-cases/            # 16 個 versioned golden scenarios
+fixtures/try-on-experiments/      # Feature Flag config 範例；不屬於 approved baseline
 scripts/run-try-on-cases.ts       # deterministic CLI entrypoint
 public/garments/                  # 種子商品的上衣圖（SVG / JPG）
 public/samples/sample-person.jpg  # 測試用人物照
@@ -82,7 +86,7 @@ vercel.json                        # 通知派送與資料保留 Cron
 - **Supabase** 負責 Auth、Postgres 與私有 Storage bucket（`person-uploads`、`try-on-results`）。`anonymous_sessions` 只保留舊測試資料，正式流程不讀寫；持久購物車、訂單與營運資料全綁定 Auth `user.id`。
 - **VTO provider 抽象層**：`VTOProvider` 介面拆成 `submit()`（送出任務、回傳 provider 端任務 ID）與 `checkStatus()`（輪詢），因為主流 VTO API 都是非同步「送出 → 輪詢」模式，serverless route 不必長時間等待。要接新供應商（如 fal.ai）只需實作介面並在 `src/lib/vto/index.ts` 的 factory 註冊。
 
-### 2.3 資料表（見 `supabase/migrations/001`–`012`）
+### 2.3 資料表（見 `supabase/migrations/001`–`012` 與後續 timestamp migrations）
 
 | 資料表 | 用途 |
 |---|---|
@@ -207,6 +211,8 @@ vercel.json                        # 通知派送與資料保留 Cron
 | `FASHN_API_KEY` | `VTO_PROVIDER=fashn` 或 `fashn-max` 時需要 |
 | `ENHANCE_PROVIDER` | `none`（預設，停用放大後處理）或 `realesrgan`（Real-ESRGAN 2× 放大，經 Replicate，約 USD 0.0025/張；只作用於 v1.6 的結果） |
 | `REPLICATE_API_TOKEN` | 僅 `ENHANCE_PROVIDER=realesrgan` 時需要，**只能在後端使用** |
+| `TRY_ON_FEATURE_FLAG_CONFIG` | 選用的單行 experiment JSON；未設定時維持 deployment control |
+| `TRY_ON_FEATURE_FLAG_HMAC_SECRET` | evaluation／canary HMAC secret，至少 32 字元；禁止 `NEXT_PUBLIC_` |
 
 `.gitignore` 已排除 `.env*`；`.env.local` 永遠不可提交。
 
@@ -230,6 +236,8 @@ vercel.json                        # 通知派送與資料保留 Cron
 - **唯讀 baseline report**：`npm run try-on:report` 統計真實 `try_on_jobs` 與私有 Storage metadata；有 `DB_URL` 時用 read-only transaction 取得 DB size，否則降級至 Supabase API 並把不可取得欄位標為 `N/A`。不得把固定案例當 production 指標，也不得在報告輸出逐筆 ID、路徑、signed URL、idempotency key 或原始錯誤訊息；完整口徑見 `docs/TRY_ON_BASELINE_REPORT.md`。
 - **品質 baseline**：`npm run try-on:baseline:verify` 只讀檢查 versioned manifest、檔案 hash、圖片 metadata 與 Workflow case hash；`--require-approved` 只允許乾淨 commit 上、由人工明確 Accept 的真實視覺案例。不得將 16/16 Workflow pass 或 production metrics report 當成視覺品質核准，也不得加入自動接受／`--update`。
 - **盲測 AI Judge**：`npm run try-on:judge -- --plan <path>` 預設只驗證圖片並輸出 prompt／plan hash；只有明確加 `--execute` 才能把四張圖送至 OpenAI。每個 pair 必須交換 A／B 評兩次，request 不得包含 contender、Provider、seed、路徑或人工決策。Judge 結果只能作人工審查的輔助證據，不得自動寫入或核准 baseline；完整規則見 `docs/TRY_ON_AI_JUDGE.md`。
+- **Feature Flag matrix**：旗標只由 `src/lib/try-on/feature-flags.ts` 讀取；Route、Provider、Client 不得自行解析。未設定時沿用 deployment control；evaluation 網站 runtime 仍走 control；canary 用後端 HMAC 穩定分流。`mock` 不可作 production experiment variant，`fashn-max + realesrgan` 永遠 invalid。完整矩陣與回滾見 `docs/TRY_ON_FEATURE_FLAGS.md`。
+- **Agent 迭代**：每輪單一假設／主要變因、不可變 candidate ID、最多 3 輪、外部 API 預算預設 USD 0。Agent 只能跑免費離線 gate 與提出 promotion 建議；不得核准 baseline、花費、部署或開 canary／on。可測試 gate 在 `src/lib/try-on/iteration-policy.ts`，完整規則見 `docs/TRY_ON_AGENT_ITERATION.md`。
 - **Lint**：ESLint（`npm run lint`），flat config 在 `eslint.config.mjs`。底線開頭的參數視為刻意未使用；規則誤判或介面保留參數時，沿用「附繁中理由的 `eslint-disable` 註解」慣例（見 `TryOnLauncher.tsx`、`AddToCartButton.tsx`），不要整條規則關掉。
 - **CI/CD**：GitHub Actions 在每個 push 與 pull request 以 Node 22 執行 `npm ci`、`npm run test`、`npm run try-on:cases -- --json`、`npm run lint`。端到端與 Supabase migration／RLS 驗證仍需依 README、`docs/DEPLOY_VERCEL.md` 與 `docs/V1_OPERATIONS.md` 的清單手動驗證。
 - **部署方式**：目標平台為 Vercel；`vercel.json` 已定義通知派送與資料保留 Cron。部署前必須遵循 `docs/DEPLOY_VERCEL.md` 與 `docs/V1_OPERATIONS.md`，且不能把 Mock Payment 當作正式金流。
@@ -251,7 +259,7 @@ vercel.json                        # 通知派送與資料保留 Cron
 - **Next.js 16 與你的訓練資料不同**（見根目錄 AGENTS.md）：寫任何 Next.js 相關程式前，先讀 `node_modules/next/dist/docs/` 的對應章節，並留意棄用警告。
 - **額度機制不要改成計數器欄位**：額度 = 統計 `try_on_jobs` 當日筆數（台北時區 UTC+8），「建立 job」即「額度 +1」，沒有同步問題；改成計數器會重新引入不同步風險。
 - **新增 VTO provider 的正確方式**：實作 `src/lib/vto/provider.ts` 的 `VTOProvider` 介面 → 在 `src/lib/vto/index.ts` factory 註冊名稱；API route 與前端不需要改。
-- **改資料庫結構**：在 `supabase/migrations/` 新增遞增編號的 SQL 檔；目前 migration 為 `001`–`012`，需在 Supabase SQL Editor 依序執行，同時更新 `src/lib/types.ts` 的對應型別及相關安全檢查。
+- **改資料庫結構**：在 `supabase/migrations/` 新增遞增編號的 SQL 檔；需依檔名排序在 Supabase SQL Editor 依序執行（`001`–`012` 後還有 timestamp migrations），同時更新 `src/lib/types.ts` 的對應型別及相關安全檢查。
 - **安全檢查不可移除**：`personImagePath` 必須以 `{userId}/` 開頭的驗證、`loadOwnedJob` 的 `user_id` 過濾、`loadImageAsPngBuffer` 的路徑跳脫檢查。
 - **改 `quota.ts` / `validation.ts` / `vto/fashn.ts` 前先跑 `npm run test`**：這三個模組有單元測試釘住行為邊界（額度上限、時區換算、訊息文案）。行為是刻意調整時，同步更新對應測試與其註解；不要為了讓測試變綠而放寬斷言。
 

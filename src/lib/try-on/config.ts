@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { resolveEnhancementConfig } from "../enhance";
+import { resolveEnhancementConfig, type ResolvedEnhancementConfig } from "../enhance";
 import {
   GARMENT_IMAGE_MAX_WIDTH,
   GARMENT_IMAGE_PREPROCESSING_VERSION,
 } from "../images";
 import type { TryOnConfigSnapshotV1 } from "../types";
+import type { ResolvedTryOnFeatureDecision } from "./feature-flags-core";
 import { TARGET_MAX_WIDTH } from "../upload-constraints";
 import {
   PERSON_IMAGE_JPEG_QUALITY,
@@ -50,6 +51,7 @@ export type ResolvedProviderGenerationConfig =
 
 export interface ResolvedTryOnConfig {
   provider: ResolvedProviderGenerationConfig;
+  enhancement: ResolvedEnhancementConfig;
   snapshot: TryOnConfigSnapshotV1;
 }
 
@@ -76,7 +78,11 @@ export function resolveGenerationSeed(seed?: number): number {
   return generateGenerationSeed();
 }
 
-export function resolveTryOnConfig(providerName: string, seed: number): ResolvedTryOnConfig {
+export function resolveTryOnConfig(
+  providerName: string,
+  seed: number,
+  featureDecision?: ResolvedTryOnFeatureDecision | null,
+): ResolvedTryOnConfig {
   if (!isValidGenerationSeed(seed)) {
     throw new RangeError(`seed 必須是 0 到 ${MAX_GENERATION_SEED} 之間的整數。`);
   }
@@ -119,9 +125,13 @@ export function resolveTryOnConfig(providerName: string, seed: number): Resolved
     throw new Error(`無法為未知的 VTO provider 建立設定快照：${providerName}`);
   }
 
-  const enhancement = resolveEnhancementConfig(providerName);
+  const enhancement = resolveEnhancementConfig(
+    providerName,
+    featureDecision?.variant.enhancement,
+  );
   const snapshot: TryOnConfigSnapshotV1 = {
     schemaVersion: 1,
+    ...(featureDecision ? { experiment: featureDecision.snapshot } : {}),
     provider: {
       name: provider.providerName,
       modelName: provider.modelName,
@@ -161,5 +171,5 @@ export function resolveTryOnConfig(providerName: string, seed: number): Resolved
       value: provider.providerName === "fashn-max" ? provider.inputs.prompt : null,
     },
   };
-  return { provider, snapshot };
+  return { provider, enhancement, snapshot };
 }

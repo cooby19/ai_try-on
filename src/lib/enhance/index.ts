@@ -25,11 +25,14 @@ export type ResolvedEnhancementConfig =
   | { provider: "realesrgan"; modelVersion: string; scale: 2 };
 
 // Snapshot 與實際 enhancer factory 共用相同環境解析規則，避免記錄與執行漂移。
-export function resolveEnhancementConfig(vtoProviderName: string): ResolvedEnhancementConfig {
+export function resolveEnhancementConfig(
+  vtoProviderName: string,
+  requestedProvider?: "none" | "realesrgan",
+): ResolvedEnhancementConfig {
   if (!ENHANCE_TARGET_VTO_PROVIDERS.has(vtoProviderName)) {
     return { provider: "none", modelVersion: null, scale: null };
   }
-  const key = (process.env.ENHANCE_PROVIDER ?? "none").toLowerCase();
+  const key = requestedProvider ?? (process.env.ENHANCE_PROVIDER ?? "none").toLowerCase();
   if (key !== "realesrgan") {
     return { provider: "none", modelVersion: null, scale: null };
   }
@@ -43,8 +46,8 @@ export function resolveEnhancementConfig(vtoProviderName: string): ResolvedEnhan
 // ENHANCE_PROVIDER 預設 none = 完全停用，行為與加入此功能前完全一致（可直接回滾）。
 // 未知值回 null + 警告而非 throw：enhance 是選配後處理，環境變數打錯字
 // 不該讓已扣額度的生成整筆報廢——與下方「放大失敗 = 降級不失敗」同一精神。
-export function getImageEnhancer(): ImageEnhancer | null {
-  const key = (process.env.ENHANCE_PROVIDER ?? "none").toLowerCase();
+export function getImageEnhancer(requestedProvider?: "none" | "realesrgan"): ImageEnhancer | null {
+  const key = requestedProvider ?? (process.env.ENHANCE_PROVIDER ?? "none").toLowerCase();
   if (key === "none") return null;
   const factory = enhancers[key];
   if (!factory) {
@@ -58,9 +61,12 @@ export function getImageEnhancer(): ImageEnhancer | null {
 
 // job 建立前預留「可能發生」的放大成本，讓平台預算熔斷涵蓋 Replicate，
 // 而 job.cost_estimate 仍只在真的放大成功後才增加，保留實際成本語意。
-export function getEnhancementCostEstimate(vtoProviderName: string): number {
+export function getEnhancementCostEstimate(
+  vtoProviderName: string,
+  config?: ResolvedEnhancementConfig,
+): number {
   if (!ENHANCE_TARGET_VTO_PROVIDERS.has(vtoProviderName)) return 0;
-  return getImageEnhancer()?.costEstimate ?? 0;
+  return getImageEnhancer(config?.provider)?.costEstimate ?? 0;
 }
 
 export interface EnhanceOutcome {
@@ -76,11 +82,12 @@ export interface EnhanceOutcome {
 // 不能因為選配的後處理讓整次生成報廢，job 仍照常標 success。
 export async function enhanceResultImage(
   image: Buffer,
-  vtoProviderName: string
+  vtoProviderName: string,
+  config?: ResolvedEnhancementConfig,
 ): Promise<EnhanceOutcome> {
   const skip: EnhanceOutcome = { image, enhanced: false, extraCost: 0 };
   if (!ENHANCE_TARGET_VTO_PROVIDERS.has(vtoProviderName)) return skip;
-  const enhancer = getImageEnhancer();
+  const enhancer = getImageEnhancer(config?.provider);
   if (!enhancer) return skip;
 
   // 硬逾時用 AbortController 真正中止底層 fetch（signal 傳進 adapter 的所有對外請求），

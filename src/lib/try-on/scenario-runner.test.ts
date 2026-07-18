@@ -52,6 +52,53 @@ describe("deterministic Try-On scenario manifest", () => {
     expect((await runScenarioCli(["--unknown"])).exitCode).toBe(2);
   });
 
+  it("CLI 可明確注入 control／candidate，candidate observation 可 byte-for-byte 重現", async () => {
+    const args = [
+      "--case",
+      "start-v16-explicit-seed-success",
+      "--feature-config",
+      "fixtures/try-on-experiments/example.v1.json",
+      "--variant",
+      "candidate",
+      "--json",
+    ];
+    const first = await runScenarioCli(args);
+    const second = await runScenarioCli(args);
+
+    expect(first).toEqual(second);
+    expect(first.exitCode).toBe(0);
+    expect(JSON.parse(first.stdout)).toMatchObject({
+      mode: "feature-observation",
+      experimentId: "example-max-v1",
+      variantRole: "candidate",
+      failed: 0,
+      cases: [
+        {
+          actual: {
+            finalJob: {
+              provider: "fashn-max",
+              configSnapshot: {
+                experiment: {
+                  variantId: "candidate-max",
+                  variantRole: "candidate",
+                  assignmentVersion: "forced-test-v1",
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+    expect(
+      (
+        await runScenarioCli([
+          "--feature-config",
+          "fixtures/try-on-experiments/example.v1.json",
+        ])
+      ).exitCode,
+    ).toBe(2);
+  });
+
   it("執行期間明確封鎖外部 network", async () => {
     const restore = installNetworkGuard();
     try {
