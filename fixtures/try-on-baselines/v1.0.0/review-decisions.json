@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "reviewer": "sihanchen",
+  "reviewedAt": "2026-07-18T01:16:26Z",
+  "sourceCandidate": "try-on-v1.0.0-candidate.2",
+  "accepted": [
+    "v16-m01-g01-s10101",
+    "v16-m01-g02-s10102",
+    "v16-m01-g03-s10103",
+    "v16-m02-g01-s20101",
+    "v16-m02-g04-s20104",
+    "v16-m01-g02-s30102",
+    "v16-m01-g03-s30103"
+  ],
+  "rejected": [
+    {
+      "caseId": "v16-m01-g04-s10104",
+      "reason": "頸部新增深色紋樣，腰部下擺偏斜。"
+    },
+    {
+      "caseId": "v16-m02-g02-s20102",
+      "reason": "原本襯衫下擺明顯殘留。"
+    },
+    {
+      "caseId": "v16-m02-g03-s20103",
+      "reason": "原本襯衫下擺明顯殘留。"
+    },
+    {
+      "caseId": "v16-m01-g01-s30101",
+      "reason": "深色側邊區塊與服裝原圖不一致。"
+    },
+    {
+      "caseId": "v16-m01-g04-s30104",
+      "reason": "人工複核認為視覺效果太假，不適合作為 regression reference。"
+    }
+  ]
+}

@@ -19,6 +19,7 @@ import { isOwnedPersonImagePath } from "../upload-intent";
 import { toJpegUploadBlob } from "../validation";
 import { getVTOProvider, resolveVTOProviderName } from "../vto";
 import { resolveGenerationSeed, resolveTryOnConfig } from "./config";
+import { resolveProductionTryOnFeatureDecision } from "./feature-flags";
 import {
   createTryOnWorkflow,
   type GetAndAdvanceTryOnInput,
@@ -37,6 +38,13 @@ const productionWorkflow = createTryOnWorkflow({
   now: () => new Date().toISOString(),
   generateSeed: () => resolveGenerationSeed(),
   resolveProviderName: resolveVTOProviderName,
+  resolveFeatureDecision({ userId, requestedModel, requestedProviderName }) {
+    return resolveProductionTryOnFeatureDecision({
+      userId,
+      requestedModel,
+      requestedProviderName,
+    });
+  },
   resolveConfig: resolveTryOnConfig,
   isOwnedPersonImagePath,
   findJobByIdempotency: findTryOnJobByIdempotency,

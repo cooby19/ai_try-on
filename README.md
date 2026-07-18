@@ -37,6 +37,8 @@ npm install
    - `010_inventory_reservations.sql`（庫存保留、付款成功才扣庫存、失敗／取消／逾期自動釋放；V0.7 必跑）
    - `011_v1_operations_security.sql`（Email、取消退款、客服、風險、RBAC、RLS、稽核、資料保留；V1.0 必跑）
    - `012_notification_record_only_mode.sql`（未設定 Email provider 時的通知記錄模式；V1.0 必跑）
+   - `20260717041002_try_on_reproducibility_idempotency.sql`（Try-On seed、設定快照、生命週期欄位與 idempotency；既有專案必跑）
+   - `20260718000000_fix_try_on_budget_reservation_coalesce.sql`（修正 Try-On quota RPC 的 numeric 預算 aggregate；既有專案必跑）
 
 ### 3. 設定環境變數
 
@@ -56,6 +58,8 @@ cp .env.local.example .env.local
 | `VTO_PROVIDER` | `fashn`（預設）、`fashn-max` 或僅供流程展示的 `mock` |
 | `FASHN_API_KEY` | 只有用 `fashn` 時需要 |
 | `PLATFORM_DAILY_BUDGET_USD` | 每日可預留的 AI 成本上限（USD） |
+| `TRY_ON_FEATURE_FLAG_CONFIG` | 選用的 server-only、versioned 實驗 JSON；未設定時維持 deployment control |
+| `TRY_ON_FEATURE_FLAG_HMAC_SECRET` | evaluation／canary 穩定分流 secret，至少 32 字元且不可公開 |
 
 ### 4. 設定 Supabase Auth
 
@@ -218,6 +222,37 @@ npm run try-on:cases -- --json
 
 相同 commit 與參數的 JSON 輸出可 byte-for-byte 重現；golden 不提供自動更新模式，任何變更都必須人工審查 fixture diff。
 
+### Try-On 品質 Baseline
+
+Workflow golden、人工視覺品質 baseline 與 production metrics 是三種不同證據。`candidate.1` 保留最初「沒有真實輸出」的盤點；`candidate.2` 保存 12 個 FASHN v1.6 真實結果與輔助初評；`v1.0.0` 只凍結 reviewer `sihanchen` 明確 Accept 的 7 個案例，並保留 5 個 Reject 的決策紀錄。
+
+```bash
+# 唯讀驗證 approved baseline 的 schema、檔案、hash、圖片 metadata、案例與人工核准狀態
+npm run try-on:baseline:verify
+
+# 明確驗證其他 versioned manifest
+npm run try-on:baseline:verify -- --manifest fixtures/try-on-baselines/v1.0.0-candidate.2/manifest.json
+```
+
+完整評分門檻、人工核准流程與升版規則見 [docs/TRY_ON_QUALITY_BASELINE.md](docs/TRY_ON_QUALITY_BASELINE.md)。Verifier 不提供自動接受或 `--update`。
+
+### Try-On 盲測 A/B AI Judge
+
+AI Judge 只接收人物／服裝參考與匿名 A／B 結果，不接收 contender 名稱、Provider、seed 或人工決策。每組固定交換 A／B 評兩次；兩次都指向同一 contender 才算勝出，位置偏誤或不一致會標成 `inconclusive`。六維 rubric、critical defect、tie／abstain 規則與 Structured Output prompt 都有固定 version／hash。
+
+```bash
+# 預設 dry-run：只驗證 plan／圖片並顯示 calls 與 hash，不會連網或花費
+npm run try-on:judge -- --plan fixtures/try-on-judge/human-calibration.v1.json
+
+# 人工確認資料可送出且接受費用後才執行
+OPENAI_API_KEY=... npm run try-on:judge -- \
+  --plan fixtures/try-on-judge/human-calibration.v1.json \
+  --out artifacts/try-on-judge/human-calibration-v1.json \
+  --execute
+```
+
+完整 prompt 設計、plan schema、校準方式與報告解讀見 [docs/TRY_ON_AI_JUDGE.md](docs/TRY_ON_AI_JUDGE.md)。Judge 只提供輔助證據，不會修改或自動核准人工 baseline。
+
 ### Try-On Baseline Report
 
 `try-on:report` 以唯讀方式統計真實 Supabase job／Storage 資料，輸出成功率、結構化錯誤、生命週期延遲、記錄成本估算與 Storage／DB 使用情況；不會呼叫 VTO provider 或修改資料。若未提供 `DB_URL`，會安全降級使用後端 Supabase Data／Storage API，並把無法取得的 relation/database size 標為 `N/A`。
@@ -228,6 +263,24 @@ npm run try-on:report -- --from 2026-07-10T00:00:00.000Z --to 2026-07-17T00:00:0
 ```
 
 完整口徑、輸出與安全規則見 [docs/TRY_ON_BASELINE_REPORT.md](docs/TRY_ON_BASELINE_REPORT.md)。固定案例只作離線回歸驗證，不會冒充 production 指標。
+
+### Try-On Feature Flag 與 Agent 迭代
+
+Feature Flag 把 provider／enhancement 組合集中在 server-only、型別安全的實驗矩陣，支援 `off`、`evaluation`、`canary`、`on`。未設定新旗標時仍使用既有 `VTO_PROVIDER`／`ENHANCE_PROVIDER`；production 新 job 會保存實際 experiment／variant、seed、model、preprocessing、enhancement 與 prompt 快照。Canary 使用後端 HMAC 做穩定分流，不保存 user ID 或 assignment key；idempotency replay 永遠沿用原 job／原 variant。
+
+```bash
+# 既有 16 個 golden regression，不受 Feature Flag 影響
+npm run try-on:cases -- --json
+
+# 明確離線觀察 candidate；不連網、不更新 golden 或 baseline
+npm run try-on:cases -- \
+  --case start-v16-explicit-seed-success \
+  --feature-config fixtures/try-on-experiments/example.v1.json \
+  --variant candidate \
+  --json
+```
+
+矩陣、設定格式、fail-closed 與回滾規則見 [docs/TRY_ON_FEATURE_FLAGS.md](docs/TRY_ON_FEATURE_FLAGS.md)。Agent 每輪最多 3 次、自動外部 API 預算預設 USD 0；promotion gate、停止條件與人工權限見 [docs/TRY_ON_AGENT_ITERATION.md](docs/TRY_ON_AGENT_ITERATION.md)。AI Judge 即使選 challenger，也只能進入等待人工審查，不能自動核准 baseline、開 canary 或部署。
 
 ## 購物車跨裝置驗證
 
@@ -254,15 +307,16 @@ src/
 ├── components/         # 試穿、CartProvider、結帳、訂單、客服與帳戶互動元件
 ├── lib/
 │   ├── vto/、enhance/  # VTO provider 與選配結果圖放大抽象層
-│   ├── try-on/         # production Workflow、可注入 core 與 deterministic scenario runner
+│   ├── try-on/         # Workflow、Feature Flag matrix、Agent gate 與 deterministic runner
 │   ├── cart*.ts、orders*.ts、mock-payments.ts # 購物車、結帳／訂單與付款商業規則
 │   ├── support.ts、risk.ts、staff.ts、retention.ts、notifications.ts # V1 營運服務
 │   ├── supabase/       # browser/server/proxy SSR Auth clients
 │   └── supabase.ts      # 後端 service-role client 與私有圖片 signed URL
 └── proxy.ts             # 更新 Supabase SSR session
-supabase/migrations/               # 001–012：核心、會員、購物車、結帳、付款、庫存與 V1 營運
+supabase/migrations/               # 001–012 + Try-On 可重現性／quota RPC 修正
 supabase/tests/                    # Supabase RLS／權限安全檢查
 fixtures/try-on-cases/             # 16 個 versioned deterministic golden cases
+fixtures/try-on-experiments/       # versioned Feature Flag config 範例（只供離線 observation）
 scripts/run-try-on-cases.ts        # 固定案例 CLI entrypoint
 vercel.json                         # 通知派送與資料保留 Cron
 .github/workflows/ci.yml            # push／PR 的 test + deterministic cases + lint

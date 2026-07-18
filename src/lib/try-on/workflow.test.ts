@@ -15,6 +15,7 @@ import { getVTOProvider, resolveVTOProviderName } from "@/lib/vto";
 import { VTOProviderError, type VTOProvider } from "@/lib/vto/provider";
 import { createTryOnRequestFingerprint } from "@/lib/try-on/idempotency";
 import { resolveTryOnConfig } from "@/lib/try-on/config";
+import { forceTryOnFeatureDecision } from "@/lib/try-on/feature-flags-core";
 import {
   getAndAdvanceTryOnWorkflow,
   startTryOnWorkflow,
@@ -475,6 +476,58 @@ describe("startTryOnWorkflow", () => {
     expect(recordTryOnJob).not.toHaveBeenCalled();
     expect(getVTOProvider).not.toHaveBeenCalled();
     expect(provider.submit).not.toHaveBeenCalled();
+  });
+
+  it("Feature Flag 改變後，同一 idempotency key 仍沿用原 snapshot／variant", async () => {
+    const originalDecision = forceTryOnFeatureDecision({
+      config: {
+        schemaVersion: 1,
+        experimentId: "original-exp",
+        mode: "evaluation",
+        rolloutPercentage: 100,
+        saltVersion: "salt-v1",
+        control: {
+          id: "control",
+          provider: "fashn",
+          enhancement: "none",
+          generationConfigVersion: "generation-v1",
+          prompt: { version: "none", hash: null },
+        },
+        candidate: {
+          id: "candidate-max",
+          provider: "fashn-max",
+          enhancement: "none",
+          generationConfigVersion: "generation-v1",
+          prompt: { version: "none", hash: null },
+        },
+      },
+      role: "candidate",
+      requestedModel: "v1.6",
+      requestedProviderName: "fashn",
+    });
+    const snapshot = resolveTryOnConfig("fashn-max", 0, originalDecision).snapshot;
+    const idempotencyKey = "request-original-variant";
+    const requestFingerprint = createTryOnRequestFingerprint({
+      userId: USER_ID,
+      productId: PRODUCT_ID,
+      personImagePath: PERSON_PATH,
+      providerName: "fashn-max",
+      configSnapshot: snapshot,
+    });
+    vi.mocked(findTryOnJobByIdempotency).mockResolvedValue(
+      makeJob({
+        provider: "fashn-max",
+        config_snapshot: snapshot,
+        idempotency_key: idempotencyKey,
+        request_fingerprint: requestFingerprint,
+      }),
+    );
+
+    const result = await startTryOnWorkflow({ ...input, idempotencyKey });
+
+    expect(result).toMatchObject({ ok: true, jobId: JOB_ID });
+    expect(recordTryOnJob).not.toHaveBeenCalled();
+    expect(getVTOProvider).not.toHaveBeenCalled();
   });
 
   it("同 user/key 但不同 fingerprint 回 conflict，不扣額度或提交 Provider", async () => {

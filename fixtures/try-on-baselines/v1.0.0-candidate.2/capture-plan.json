@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "try-on-v1.0.0-candidate.2",
+  "provider": "fashn",
+  "modelName": "tryon-v1.6",
+  "maxSubmissions": 12,
+  "estimatedCostUsd": 0.9,
+  "enhancement": "none",
+  "persons": [
+    {
+      "id": "model-01",
+      "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg"
+    },
+    {
+      "id": "model-02",
+      "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-02.jpg"
+    }
+  ],
+  "excludedPersons": [
+    {
+      "id": "model-03-lowres-excluded",
+      "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-03-lowres-excluded.jpeg",
+      "reason": "寬度 183px，低於 production normalizePersonImage 的 320px 最低門檻；不送 Provider。"
+    }
+  ],
+  "garments": [
+    {
+      "id": "garment-01-mint-sweatshirt",
+      "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-01-mint-sweatshirt.jpg"
+    },
+    {
+      "id": "garment-02-blue-tee",
+      "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-02-blue-tee.jpg"
+    },
+    {
+      "id": "garment-03-gray-tee",
+      "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-03-gray-tee.jpg"
+    },
+    {
+      "id": "garment-04-orange-tee",
+      "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-04-orange-tee.jpg"
+    }
+  ],
+  "cases": [
+    { "id": "v16-m01-g01-s10101", "personId": "model-01", "garmentId": "garment-01-mint-sweatshirt", "seed": 10101 },
+    { "id": "v16-m01-g02-s10102", "personId": "model-01", "garmentId": "garment-02-blue-tee", "seed": 10102 },
+    { "id": "v16-m01-g03-s10103", "personId": "model-01", "garmentId": "garment-03-gray-tee", "seed": 10103 },
+    { "id": "v16-m01-g04-s10104", "personId": "model-01", "garmentId": "garment-04-orange-tee", "seed": 10104 },
+    { "id": "v16-m02-g01-s20101", "personId": "model-02", "garmentId": "garment-01-mint-sweatshirt", "seed": 20101 },
+    { "id": "v16-m02-g02-s20102", "personId": "model-02", "garmentId": "garment-02-blue-tee", "seed": 20102 },
+    { "id": "v16-m02-g03-s20103", "personId": "model-02", "garmentId": "garment-03-gray-tee", "seed": 20103 },
+    { "id": "v16-m02-g04-s20104", "personId": "model-02", "garmentId": "garment-04-orange-tee", "seed": 20104 },
+    { "id": "v16-m01-g01-s30101", "personId": "model-01", "garmentId": "garment-01-mint-sweatshirt", "seed": 30101 },
+    { "id": "v16-m01-g02-s30102", "personId": "model-01", "garmentId": "garment-02-blue-tee", "seed": 30102 },
+    { "id": "v16-m01-g03-s30103", "personId": "model-01", "garmentId": "garment-03-gray-tee", "seed": 30103 },
+    { "id": "v16-m01-g04-s30104", "personId": "model-01", "garmentId": "garment-04-orange-tee", "seed": 30104 }
+  ]
+}

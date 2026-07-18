@@ -30,8 +30,24 @@ export type TryOnErrorType =
   | "timeout"
   | "internal";
 
+export interface TryOnFeatureFlagSnapshotV1 {
+  schemaVersion: 1;
+  experimentId: string;
+  variantId: string;
+  variantRole: "control" | "candidate";
+  rolloutMode: "off" | "evaluation" | "canary" | "on";
+  rolloutPercentage: number;
+  assignmentVersion: "deployment-control-v1" | "hmac-sha256-v1" | "forced-test-v1";
+  saltVersion: string;
+  requestedModel: TryOnModel | null;
+  requestedProviderName: "fashn" | "fashn-max" | "mock";
+}
+
 export interface TryOnConfigSnapshotV1 {
   schemaVersion: 1;
+  // v1 golden 與 migration 前資料沒有此欄位；production 新 job 一律由 server-only
+  // Feature Flag resolver 寫入，保留 optional 只為唯讀相容既有凍結證據。
+  experiment?: TryOnFeatureFlagSnapshotV1;
   provider: {
     name: "fashn" | "fashn-max" | "mock";
     modelName: "tryon-v1.6" | "tryon-max" | "mock";

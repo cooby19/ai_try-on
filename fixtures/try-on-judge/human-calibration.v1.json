@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "human-calibration-v1",
+  "baselineId": "try-on-v1.0.0-approved-seed-set",
+  "challengerId": "try-on-v1.0.0-candidate.2-alternate-seed-set",
+  "pairs": [
+    {
+      "id": "m01-g01-seed-comparison",
+      "personImagePath": "fixtures/try-on-baselines/v1.0.0/preprocessed/models/model-01.jpg",
+      "garmentImagePath": "fixtures/try-on-baselines/v1.0.0/preprocessed/garments/garment-01-mint-sweatshirt.png",
+      "baselineOutputPath": "fixtures/try-on-baselines/v1.0.0/results/v16-m01-g01-s10101.jpg",
+      "challengerOutputPath": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g01-s30101.jpg"
+    },
+    {
+      "id": "m01-g02-seed-comparison",
+      "personImagePath": "fixtures/try-on-baselines/v1.0.0/preprocessed/models/model-01.jpg",
+      "garmentImagePath": "fixtures/try-on-baselines/v1.0.0/preprocessed/garments/garment-02-blue-tee.png",
+      "baselineOutputPath": "fixtures/try-on-baselines/v1.0.0/results/v16-m01-g02-s10102.jpg",
+      "challengerOutputPath": "fixtures/try-on-baselines/v1.0.0/results/v16-m01-g02-s30102.jpg"
+    },
+    {
+      "id": "m01-g03-seed-comparison",
+      "personImagePath": "fixtures/try-on-baselines/v1.0.0/preprocessed/models/model-01.jpg",
+      "garmentImagePath": "fixtures/try-on-baselines/v1.0.0/preprocessed/garments/garment-03-gray-tee.png",
+      "baselineOutputPath": "fixtures/try-on-baselines/v1.0.0/results/v16-m01-g03-s10103.jpg",
+      "challengerOutputPath": "fixtures/try-on-baselines/v1.0.0/results/v16-m01-g03-s30103.jpg"
+    }
+  ]
+}

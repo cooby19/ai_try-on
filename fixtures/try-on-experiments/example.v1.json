@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "example-max-v1",
+  "mode": "evaluation",
+  "rolloutPercentage": 100,
+  "saltVersion": "salt-v1",
+  "control": {
+    "id": "control-v16",
+    "provider": "fashn",
+    "enhancement": "none",
+    "generationConfigVersion": "generation-v1",
+    "prompt": { "version": "none", "hash": null }
+  },
+  "candidate": {
+    "id": "candidate-max",
+    "provider": "fashn-max",
+    "enhancement": "none",
+    "generationConfigVersion": "generation-v1",
+    "prompt": { "version": "none", "hash": null }
+  }
+}

@@ -1,4 +1,4 @@
-import type { EnhanceOutcome } from "../enhance";
+import type { EnhanceOutcome, ResolvedEnhancementConfig } from "../enhance";
 import type { AtomicJobCreationResult, QuotaCheck } from "../quota";
 import type {
   JobStatus,
@@ -11,6 +11,7 @@ import type { VTOProvider, VTOImageInput, VTOStatusResult } from "../vto/provide
 import { VTOProviderError } from "../vto/provider";
 import type { ResolvedTryOnConfig } from "./config";
 import { isValidGenerationSeed } from "./config";
+import type { ResolvedTryOnFeatureDecision, TryOnFeatureProvider } from "./feature-flags-core";
 import {
   IDEMPOTENCY_CONFLICT_MESSAGE,
   IDEMPOTENCY_KEY_ERROR_MESSAGE,
@@ -85,13 +86,25 @@ export interface TryOnWorkflowDependencies {
   now(): string;
   generateSeed(): number;
   resolveProviderName(requestedModel?: unknown): string | null;
-  resolveConfig(providerName: string, seed: number): ResolvedTryOnConfig;
+  resolveFeatureDecision?(input: {
+    userId: string;
+    requestedModel?: unknown;
+    requestedProviderName: TryOnFeatureProvider;
+  }): ResolvedTryOnFeatureDecision | null;
+  resolveConfig(
+    providerName: string,
+    seed: number,
+    featureDecision?: ResolvedTryOnFeatureDecision | null,
+  ): ResolvedTryOnConfig;
   isOwnedPersonImagePath(userId: string, personImagePath: string): boolean;
   findJobByIdempotency(userId: string, idempotencyKey: string): Promise<TryOnJob | null>;
   checkQuota(userId: string, productId: string): Promise<QuotaCheck>;
   loadProduct(productId: string): Promise<Product | null>;
   getProvider(providerName: string): VTOProvider;
-  getEnhancementCostEstimate(providerName: string): number;
+  getEnhancementCostEstimate(
+    providerName: string,
+    config?: ResolvedEnhancementConfig,
+  ): number;
   recordJob(input: {
     userId: string;
     productId: string;
@@ -114,7 +127,11 @@ export interface TryOnWorkflowDependencies {
   downloadPersonImage(path: string): Promise<Buffer>;
   loadGarmentImage(path: string): Promise<Buffer>;
   loadOwnedJob(jobId: string, userId: string): Promise<TryOnJob | null>;
-  enhanceResultImage(image: Buffer, providerName: string): Promise<EnhanceOutcome>;
+  enhanceResultImage(
+    image: Buffer,
+    providerName: string,
+    config?: ResolvedEnhancementConfig,
+  ): Promise<EnhanceOutcome>;
   uploadResultImage(path: string, image: Buffer): Promise<{ message: string } | null>;
   updateJobCost(jobId: string, costEstimate: number, updatedAt: string): Promise<string | null>;
   createPersonSignedUrl(path: string): Promise<string | null>;
@@ -124,6 +141,45 @@ export interface TryOnWorkflowDependencies {
 
 function workflowErrorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : "發生未知錯誤";
+}
+
+function storedConfigSnapshot(job: TryOnJob): ResolvedTryOnConfig["snapshot"] | null {
+  const snapshot = job.config_snapshot;
+  if (
+    !snapshot ||
+    typeof snapshot !== "object" ||
+    !("schemaVersion" in snapshot) ||
+    snapshot.schemaVersion !== 1 ||
+    !("provider" in snapshot) ||
+    !("generation" in snapshot)
+  ) {
+    return null;
+  }
+  return snapshot as ResolvedTryOnConfig["snapshot"];
+}
+
+function storedEnhancementConfig(job: TryOnJob): ResolvedEnhancementConfig | undefined {
+  const snapshot = storedConfigSnapshot(job);
+  const enhancement = snapshot?.enhancement;
+  if (
+    enhancement?.provider === "none" &&
+    enhancement.modelVersion === null &&
+    enhancement.scale === null
+  ) {
+    return { provider: "none", modelVersion: null, scale: null };
+  }
+  if (
+    enhancement?.provider === "realesrgan" &&
+    typeof enhancement.modelVersion === "string" &&
+    enhancement.scale === 2
+  ) {
+    return {
+      provider: "realesrgan",
+      modelVersion: enhancement.modelVersion,
+      scale: 2,
+    };
+  }
+  return undefined;
 }
 
 export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
@@ -170,7 +226,10 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
   async function finalizeSuccessfulJob(job: TryOnJob, resultImage: Buffer): Promise<TryOnJob> {
     let enhanceOutcome: EnhanceOutcome;
     try {
-      enhanceOutcome = await deps.enhanceResultImage(resultImage, job.provider);
+      const enhancement = storedEnhancementConfig(job);
+      enhanceOutcome = enhancement
+        ? await deps.enhanceResultImage(resultImage, job.provider, enhancement)
+        : await deps.enhanceResultImage(resultImage, job.provider);
     } catch (cause) {
       await deps.updateJobStatus(job.id, {
         status: "failed",
@@ -257,8 +316,8 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       };
     }
 
-    const providerName = deps.resolveProviderName(input.requestedModel);
-    if (!providerName) {
+    const requestedProviderName = deps.resolveProviderName(input.requestedModel);
+    if (!requestedProviderName) {
       return {
         ok: false,
         code: "unsupported_model",
@@ -287,21 +346,32 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       };
     }
 
-    const requestFingerprint = input.idempotencyKey
-      ? createTryOnRequestFingerprint({
-          userId: input.userId,
-          productId: input.productId,
-          personImagePath: input.personImagePath,
-          providerName,
-          configSnapshot: deps.resolveConfig(providerName, input.seed ?? 0).snapshot,
-          explicitSeed: input.seed,
-        })
-      : undefined;
-
-    if (input.idempotencyKey && requestFingerprint) {
+    if (input.idempotencyKey) {
       const existing = await deps.findJobByIdempotency(input.userId, input.idempotencyKey);
       if (existing) {
-        if (existing.request_fingerprint !== requestFingerprint) {
+        const snapshot = storedConfigSnapshot(existing);
+        const originalRequestedProvider = snapshot?.experiment?.requestedProviderName;
+        const replayFingerprint = snapshot
+          ? createTryOnRequestFingerprint({
+              userId: input.userId,
+              productId: input.productId,
+              personImagePath: input.personImagePath,
+              providerName: existing.provider,
+              configSnapshot: snapshot,
+              explicitSeed: input.seed,
+            })
+          : createTryOnRequestFingerprint({
+              userId: input.userId,
+              productId: input.productId,
+              personImagePath: input.personImagePath,
+              providerName: requestedProviderName,
+              configSnapshot: deps.resolveConfig(requestedProviderName, input.seed ?? 0).snapshot,
+              explicitSeed: input.seed,
+            });
+        if (
+          (originalRequestedProvider && originalRequestedProvider !== requestedProviderName) ||
+          existing.request_fingerprint !== replayFingerprint
+        ) {
           return {
             ok: false,
             code: "idempotency_conflict",
@@ -318,6 +388,24 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
         };
       }
     }
+
+    const featureDecision = deps.resolveFeatureDecision?.({
+      userId: input.userId,
+      requestedModel: input.requestedModel,
+      requestedProviderName: requestedProviderName as TryOnFeatureProvider,
+    }) ?? null;
+    const providerName = featureDecision?.variant.provider ?? requestedProviderName;
+    const intentConfig = deps.resolveConfig(providerName, input.seed ?? 0, featureDecision);
+    const requestFingerprint = input.idempotencyKey
+      ? createTryOnRequestFingerprint({
+          userId: input.userId,
+          productId: input.productId,
+          personImagePath: input.personImagePath,
+          providerName,
+          configSnapshot: intentConfig.snapshot,
+          explicitSeed: input.seed,
+        })
+      : undefined;
 
     const product = await deps.loadProduct(input.productId);
     if (!product) {
@@ -346,10 +434,11 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       (input.idempotencyKey && requestFingerprint
         ? createIdempotentGenerationSeed(input.idempotencyKey, requestFingerprint)
         : deps.generateSeed());
-    const resolvedConfig = deps.resolveConfig(provider.providerName, seed);
+    const resolvedConfig = deps.resolveConfig(provider.providerName, seed, featureDecision);
     const startedAt = deps.now();
     const budgetReservation =
-      provider.costEstimate + deps.getEnhancementCostEstimate(provider.providerName);
+      provider.costEstimate +
+      deps.getEnhancementCostEstimate(provider.providerName, resolvedConfig.enhancement);
     const creation = await deps.recordJob({
       userId: input.userId,
       productId: input.productId,

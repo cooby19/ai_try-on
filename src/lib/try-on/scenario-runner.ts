@@ -6,6 +6,13 @@ import type { VTOProvider, VTOStatusResult } from "../vto/provider";
 import { VTOProviderError } from "../vto/provider";
 import { resolveTryOnConfig } from "./config";
 import {
+  forceTryOnFeatureDecision,
+  parseTryOnFeatureFlagConfig,
+  TryOnFeatureFlagError,
+  type TryOnFeatureFlagConfigV1,
+  type TryOnVariantRole,
+} from "./feature-flags-core";
+import {
   createTryOnWorkflow,
   type StartTryOnInput,
   type TryOnWorkflowDependencies,
@@ -106,6 +113,11 @@ export interface CliResult {
   stderr: string;
 }
 
+export interface ScenarioExecutionOptions {
+  featureConfig: TryOnFeatureFlagConfigV1;
+  forcedVariant: TryOnVariantRole;
+}
+
 class FixedClock {
   private nextMs: number;
 
@@ -170,11 +182,15 @@ function normalizeJob(job: TryOnJob | null): NormalizedJob | null {
   };
 }
 
-function deterministicConfig(providerName: string, seed: number) {
+function deterministicConfig(
+  providerName: string,
+  seed: number,
+  featureDecision?: Parameters<typeof resolveTryOnConfig>[2],
+) {
   const previous = process.env.ENHANCE_PROVIDER;
   process.env.ENHANCE_PROVIDER = "none";
   try {
-    return resolveTryOnConfig(providerName, seed);
+    return resolveTryOnConfig(providerName, seed, featureDecision);
   } finally {
     if (previous === undefined) delete process.env.ENHANCE_PROVIDER;
     else process.env.ENHANCE_PROVIDER = previous;
@@ -258,7 +274,10 @@ function updateStoredJob(
 
 export const scenarioWorkflowFactory = createTryOnWorkflow;
 
-export async function executeScenario(definition: ScenarioDefinition): Promise<ScenarioActual> {
+export async function executeScenario(
+  definition: ScenarioDefinition,
+  options?: ScenarioExecutionOptions,
+): Promise<ScenarioActual> {
   const clock = new FixedClock(definition.clock.start, definition.clock.stepMs);
   const trace: string[] = [];
   const jobs = new Map<string, TryOnJob>();
@@ -307,6 +326,15 @@ export async function executeScenario(definition: ScenarioDefinition): Promise<S
       if (requestedModel === "max") return "fashn-max";
       return null;
     },
+    resolveFeatureDecision: options
+      ? ({ requestedModel, requestedProviderName }) =>
+          forceTryOnFeatureDecision({
+            config: options.featureConfig,
+            role: options.forcedVariant,
+            requestedModel,
+            requestedProviderName,
+          })
+      : undefined,
     resolveConfig: deterministicConfig,
     isOwnedPersonImagePath() {
       return definition.behavior.ownedPersonImage;
@@ -344,7 +372,11 @@ export async function executeScenario(definition: ScenarioDefinition): Promise<S
       return definition.initialState.product === "active" ? makeProduct(definition.ids) : null;
     },
     getProvider(providerName) {
-      return { ...provider, providerName };
+      return {
+        ...provider,
+        providerName,
+        costEstimate: providerName === "fashn-max" ? 0.15 : providerName === "mock" ? 0 : 0.075,
+      };
     },
     getEnhancementCostEstimate(providerName) {
       trace.push(`enhancement.estimate:${providerName}:0`);
@@ -493,11 +525,12 @@ function firstDifference(actual: unknown, expected: unknown): string {
 
 export async function runScenarios(
   definitions: ScenarioDefinition[],
+  options?: ScenarioExecutionOptions,
 ): Promise<ScenarioRunSummary> {
   const comparisons: ScenarioComparison[] = [];
   for (const definition of definitions) {
     try {
-      const actual = await executeScenario(definition);
+      const actual = await executeScenario(definition, options);
       const passed = canonicalJson(actual) === canonicalJson(definition.expected);
       comparisons.push(
         passed
@@ -522,6 +555,31 @@ export async function runScenarios(
   return { schemaVersion: 1, passed, failed: comparisons.length - passed, cases: comparisons };
 }
 
+export async function runScenarioObservations(
+  definitions: ScenarioDefinition[],
+  options: ScenarioExecutionOptions,
+) {
+  const cases: Array<{ id: string; actual?: ScenarioActual; error?: string }> = [];
+  for (const definition of definitions) {
+    try {
+      cases.push({ id: definition.id, actual: await executeScenario(definition, options) });
+    } catch (cause) {
+      cases.push({
+        id: definition.id,
+        error: cause instanceof Error ? cause.message : "unknown scenario error",
+      });
+    }
+  }
+  return {
+    schemaVersion: 1 as const,
+    mode: "feature-observation" as const,
+    experimentId: options.featureConfig.experimentId,
+    variantRole: options.forcedVariant,
+    failed: cases.filter((entry) => entry.error).length,
+    cases,
+  };
+}
+
 export function installNetworkGuard(): () => void {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => {
@@ -536,7 +594,7 @@ function usageError(message: string): CliResult {
   return {
     exitCode: 2,
     stdout: "",
-    stderr: `${message}\nUsage: npm run try-on:cases -- [--list] [--case <id>] [--json]\n`,
+    stderr: `${message}\nUsage: npm run try-on:cases -- [--list] [--case <id>] [--json] [--feature-config <path> --variant <control|candidate>]\n`,
   };
 }
 
@@ -544,6 +602,8 @@ export async function runScenarioCli(args: string[]): Promise<CliResult> {
   let list = false;
   let json = false;
   let caseId: string | undefined;
+  let featureConfigPath: string | undefined;
+  let forcedVariant: TryOnVariantRole | undefined;
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === "--list") list = true;
@@ -553,11 +613,27 @@ export async function runScenarioCli(args: string[]): Promise<CliResult> {
       if (!value || value.startsWith("--")) return usageError("--case 需要案例 ID");
       caseId = value;
       index += 1;
+    } else if (argument === "--feature-config") {
+      const value = args[index + 1];
+      if (!value || value.startsWith("--")) return usageError("--feature-config 需要 JSON path");
+      featureConfigPath = value;
+      index += 1;
+    } else if (argument === "--variant") {
+      const value = args[index + 1];
+      if (value !== "control" && value !== "candidate") {
+        return usageError("--variant 必須是 control 或 candidate");
+      }
+      forcedVariant = value;
+      index += 1;
     } else {
       return usageError(`未知參數：${argument}`);
     }
   }
   if (list && caseId) return usageError("--list 與 --case 不可同時使用");
+  if (Boolean(featureConfigPath) !== Boolean(forcedVariant)) {
+    return usageError("--feature-config 與 --variant 必須一起使用");
+  }
+  if (list && featureConfigPath) return usageError("--list 不接受 Feature Flag 注入");
 
   let manifest: ScenarioManifest;
   try {
@@ -585,6 +661,42 @@ export async function runScenarioCli(args: string[]): Promise<CliResult> {
 
   const restoreNetwork = installNetworkGuard();
   try {
+    if (featureConfigPath && forcedVariant) {
+      let featureConfig: TryOnFeatureFlagConfigV1;
+      try {
+        featureConfig = parseTryOnFeatureFlagConfig(
+          JSON.parse(readFileSync(resolve(process.cwd(), featureConfigPath), "utf8")),
+        );
+      } catch (cause) {
+        return {
+          exitCode: 1,
+          stdout: "",
+          stderr: `${cause instanceof TryOnFeatureFlagError ? cause.diagnostic : cause instanceof Error ? cause.message : "無法載入 Feature Flag config"}\n`,
+        };
+      }
+      const observation = await runScenarioObservations(selected, {
+        featureConfig,
+        forcedVariant,
+      });
+      if (json) {
+        return {
+          exitCode: observation.failed === 0 ? 0 : 1,
+          stdout: prettyCanonicalJson(observation),
+          stderr: "",
+        };
+      }
+      const lines = observation.cases.map((entry) =>
+        entry.error ? `[FAIL] ${entry.id}\n  ${entry.error}` : `[OBSERVED] ${entry.id}`,
+      );
+      lines.push(
+        `${observation.cases.length - observation.failed} observed, ${observation.failed} failed`,
+      );
+      return {
+        exitCode: observation.failed === 0 ? 0 : 1,
+        stdout: `${lines.join("\n")}\n`,
+        stderr: "",
+      };
+    }
     const summary = await runScenarios(selected);
     if (json) {
       return {

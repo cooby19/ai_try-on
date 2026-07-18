@@ -6,9 +6,17 @@ const migrationPath = path.join(
   process.cwd(),
   "supabase/migrations/20260717041002_try_on_reproducibility_idempotency.sql",
 );
+const numericFixMigrationPath = path.join(
+  process.cwd(),
+  "supabase/migrations/20260718000000_fix_try_on_budget_reservation_coalesce.sql",
+);
 
 async function migrationSql(): Promise<string> {
   return readFile(migrationPath, "utf8");
+}
+
+async function numericFixMigrationSql(): Promise<string> {
+  return readFile(numericFixMigrationPath, "utf8");
 }
 
 describe("Try-On migration contract（離線靜態保護）", () => {
@@ -45,5 +53,16 @@ describe("Try-On migration contract（離線靜態保護）", () => {
     expect(sql).toContain("seed, config_snapshot, started_at, idempotency_key, request_fingerprint");
     expect(sql).toContain("new.config_snapshot := old.config_snapshot");
     expect(sql).toContain("new.completed_at := old.completed_at");
+  });
+
+  it("numeric 預算 aggregate 使用明確 numeric fallback，且 replacement 保留 RPC 安全邊界", async () => {
+    const sql = await numericFixMigrationSql();
+    expect(sql).toContain("create or replace function public.insert_try_on_job_within_quota");
+    expect(sql).toContain("coalesce(pg_catalog.sum(budget_reservation), 0::numeric)");
+    expect(sql).not.toContain("pg_catalog.coalesce");
+    expect(sql).toContain("security definer\nset search_path = ''");
+    expect(sql).toContain("pg_catalog.pg_advisory_xact_lock");
+    expect(sql).toMatch(/from public, anon, authenticated;/);
+    expect(sql).toMatch(/to service_role;/);
   });
 });
