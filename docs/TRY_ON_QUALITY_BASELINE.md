@@ -19,16 +19,18 @@
 - Reject／Needs rerun 不得進入 approved baseline。
 - 不提供自動接受或 `--update`；修改 manifest、輸入、輸出、評分或 expected value 都必須留下可審查的 Git diff。
 
-Verifier 預設檢查 candidate 的 schema、檔案、SHA-256、圖片 metadata、Workflow 案例完整性與核准狀態：
+Verifier 預設檢查目前凍結的 `v1.0.0` approved baseline，包括 schema、檔案、SHA-256、圖片 metadata、Workflow 案例完整性與人工核准狀態：
 
 ```bash
 npm run try-on:baseline:verify
 ```
 
-需要正式 release gate 時加上 `--require-approved`。Candidate 預期會在此模式失敗：
+要檢查歷史 candidate，可明確指定 manifest；加上 `--require-approved` 時，candidate 預期會失敗：
 
 ```bash
-npm run try-on:baseline:verify -- --require-approved
+npm run try-on:baseline:verify -- \
+  --manifest fixtures/try-on-baselines/v1.0.0-candidate.2/manifest.json \
+  --require-approved
 ```
 
 Verifier 完全離線且只讀，不會呼叫 Provider、DB 或 Storage，也不會修改 hash 或 baseline。

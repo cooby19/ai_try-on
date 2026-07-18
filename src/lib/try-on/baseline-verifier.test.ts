@@ -8,21 +8,21 @@ const CANDIDATE_1_MANIFEST = resolve(
 );
 const MANIFEST = resolve(
   process.cwd(),
-  "fixtures/try-on-baselines/v1.0.0-candidate.2/manifest.json",
+  "fixtures/try-on-baselines/v1.0.0/manifest.json",
 );
 
 describe("Try-On baseline verifier", () => {
-  it("最新 candidate 的檔案、hash、Workflow 與視覺案例完整一致", async () => {
+  it("approved baseline 的檔案、hash、Workflow 與人工接受案例完整一致", async () => {
     const result = await verifyTryOnBaseline({
       repoRoot: process.cwd(),
       manifestPath: MANIFEST,
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.status).toBe("candidate");
+    expect(result.status).toBe("approved");
     expect(result.checkedWorkflowCases).toBe(16);
-    expect(result.checkedVisualCases).toBe(12);
-    expect(result.warnings).toContain("baseline 仍是 candidate，尚未經人工核准");
+    expect(result.checkedVisualCases).toBe(7);
+    expect(result.warnings).toEqual([]);
   });
 
   it("保留的 candidate.1 仍可獨立驗證且不被覆寫", async () => {
@@ -36,13 +36,13 @@ describe("Try-On baseline verifier", () => {
     expect(result.checkedVisualCases).toBe(0);
   });
 
-  it("require-approved 會拒絕尚未人工核准的 candidate", async () => {
+  it("require-approved 接受已凍結的人工核准 baseline", async () => {
     const result = await verifyTryOnBaseline({
       repoRoot: process.cwd(),
       manifestPath: MANIFEST,
       requireApproved: true,
     });
 
-    expect(result.errors).toContain("目前 baseline 不是 approved");
+    expect(result.errors).toEqual([]);
   });
 });

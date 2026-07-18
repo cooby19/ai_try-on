@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { verifyTryOnBaseline } from "../src/lib/try-on/baseline-verifier";
 
-const DEFAULT_MANIFEST = "fixtures/try-on-baselines/v1.0.0-candidate.2/manifest.json";
+const DEFAULT_MANIFEST = "fixtures/try-on-baselines/v1.0.0/manifest.json";
 const USAGE = "Usage: npm run try-on:baseline:verify -- [--manifest <path>] [--require-approved]";
 
 interface CliOptions {
