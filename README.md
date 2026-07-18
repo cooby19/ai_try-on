@@ -232,6 +232,23 @@ npm run try-on:baseline:verify -- --manifest fixtures/try-on-baselines/v1.0.0-ca
 
 完整評分門檻、人工核准流程與升版規則見 [docs/TRY_ON_QUALITY_BASELINE.md](docs/TRY_ON_QUALITY_BASELINE.md)。Verifier 不提供自動接受或 `--update`。
 
+### Try-On 盲測 A/B AI Judge
+
+AI Judge 只接收人物／服裝參考與匿名 A／B 結果，不接收 contender 名稱、Provider、seed 或人工決策。每組固定交換 A／B 評兩次；兩次都指向同一 contender 才算勝出，位置偏誤或不一致會標成 `inconclusive`。六維 rubric、critical defect、tie／abstain 規則與 Structured Output prompt 都有固定 version／hash。
+
+```bash
+# 預設 dry-run：只驗證 plan／圖片並顯示 calls 與 hash，不會連網或花費
+npm run try-on:judge -- --plan fixtures/try-on-judge/human-calibration.v1.json
+
+# 人工確認資料可送出且接受費用後才執行
+OPENAI_API_KEY=... npm run try-on:judge -- \
+  --plan fixtures/try-on-judge/human-calibration.v1.json \
+  --out artifacts/try-on-judge/human-calibration-v1.json \
+  --execute
+```
+
+完整 prompt 設計、plan schema、校準方式與報告解讀見 [docs/TRY_ON_AI_JUDGE.md](docs/TRY_ON_AI_JUDGE.md)。Judge 只提供輔助證據，不會修改或自動核准人工 baseline。
+
 ### Try-On Baseline Report
 
 `try-on:report` 以唯讀方式統計真實 Supabase job／Storage 資料，輸出成功率、結構化錯誤、生命週期延遲、記錄成本估算與 Storage／DB 使用情況；不會呼叫 VTO provider 或修改資料。若未提供 `DB_URL`，會安全降級使用後端 Supabase Data／Storage API，並把無法取得的 relation/database size 標為 `N/A`。

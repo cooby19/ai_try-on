@@ -12,6 +12,7 @@
     "try-on:cases": "node --import tsx scripts/run-try-on-cases.ts",
     "try-on:baseline:capture": "node --import tsx scripts/capture-try-on-visual-baseline.ts --plan fixtures/try-on-baselines/v1.0.0-candidate.2/capture-plan.json",
     "try-on:baseline:verify": "node --import tsx scripts/verify-try-on-baseline.ts --manifest fixtures/try-on-baselines/v1.0.0/manifest.json",
+    "try-on:judge": "node --import tsx scripts/run-try-on-ai-judge.ts",
     "try-on:report": "node --import tsx scripts/run-try-on-report.ts",
     "lint": "eslint ."
   },

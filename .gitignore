@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/artifacts/try-on-judge/
 
 # next.js
 /.next/
