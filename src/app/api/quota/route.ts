@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/user";
 import {
   checkGenerationQuota,
   DAILY_GENERATION_LIMIT,
+  GENERATION_LIMITS_ENABLED,
 } from "@/lib/quota";
 import { getDefaultUserModel } from "@/lib/vto";
 import { jsonError, errorMessage, errorStatus } from "@/lib/http";
@@ -19,12 +20,20 @@ export async function GET(req: Request) {
 
     const userId = (await requireUser()).id;
     const quota = await checkGenerationQuota(userId, productId);
-    return NextResponse.json({
-      remainingToday: quota.remainingToday,
-      remainingRetriesForProduct: quota.remainingRetriesForProduct,
-      dailyLimit: DAILY_GENERATION_LIMIT,
-      defaultModel,
-    });
+    return NextResponse.json(
+      GENERATION_LIMITS_ENABLED
+        ? {
+            generationLimitsEnabled: true,
+            remainingToday: quota.remainingToday,
+            remainingRetriesForProduct: quota.remainingRetriesForProduct,
+            dailyLimit: DAILY_GENERATION_LIMIT,
+            defaultModel,
+          }
+        : {
+            generationLimitsEnabled: false,
+            defaultModel,
+          },
+    );
   } catch (e) {
     return jsonError(errorStatus(e), errorMessage(e));
   }

@@ -39,6 +39,7 @@ npm install
    - `012_notification_record_only_mode.sql`（未設定 Email provider 時的通知記錄模式；V1.0 必跑）
    - `20260717041002_try_on_reproducibility_idempotency.sql`（Try-On seed、設定快照、生命週期欄位與 idempotency；既有專案必跑）
    - `20260718000000_fix_try_on_budget_reservation_coalesce.sql`（修正 Try-On quota RPC 的 numeric 預算 aggregate；既有專案必跑）
+   - `20260718010000_disable_try_on_generation_limits.sql`（測試期間停用使用者／商品生成次數限制；既有專案必跑）
 
 ### 3. 設定環境變數
 
@@ -119,8 +120,8 @@ npm run dev
 
 | 規則 | 值 | 位置 |
 |---|---|---|
-| 每人每日生成上限 | 3 次 | `src/lib/quota.ts` `DAILY_GENERATION_LIMIT` |
-| 每商品每人重試上限 | 2 次（首次 + 2 次重試） | `src/lib/quota.ts` `PER_PRODUCT_RETRY_LIMIT` |
+| 每人每日生成上限 | 暫時停用（測試期間） | `src/lib/quota.ts` `GENERATION_LIMITS_ENABLED` |
+| 每商品每人重試上限 | 暫時停用（測試期間） | `src/lib/quota.ts` `GENERATION_LIMITS_ENABLED` |
 | 平台每日成本預算 | 環境變數，預設 USD 5 | `PLATFORM_DAILY_BUDGET_USD` |
 
 額度直接統計 `try_on_jobs` 當日筆數（台北時區），失敗的生成也計入（因為已產生 API 成本）。每筆任務都記錄 `provider`、`cost_estimate`、`status`、`retry_count`、`error_message`。
@@ -203,8 +204,8 @@ npm run dev
 
 1. 商品頁點「AI 試穿」→ Google 或 Email OTP 登入 → 上傳一張人物照（沒有現成照片可用 `public/samples/sample-person.jpg`）→ 約 3 秒後看到示範結果圖（含 MOCK 浮水印）
 2. 按「滿意 / 不滿意」→ Supabase `try_on_feedback` 表會多一筆
-3. 同一商品連續生成 3 次 → 第 4 次會被「此商品重試上限」擋下
-4. 換不同商品湊滿當日 3 次 → 再生成會被「每日上限」擋下
+3. 同一商品可連續重新生成，生成次數限制在測試期間暫時停用
+4. 仍確認平台每日預算熔斷時，新的生成請求會被拒絕
 5. 約 4MB、8MB 圖片可直傳；txt 或超過 8MB 的檔案會在送出前得到可操作的錯誤訊息
 
 ### Deterministic Try-On 固定案例

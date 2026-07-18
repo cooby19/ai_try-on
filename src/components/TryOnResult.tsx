@@ -63,7 +63,7 @@ export default function TryOnResult({
 
   async function deleteRecord() {
     if (deleteBusy) return;
-    if (!confirm("確定要刪除這次試穿的照片嗎？照片將立即刪除且無法復原（生成次數仍會計入今日額度）。")) return;
+    if (!confirm("確定要刪除這次試穿的照片嗎？照片將立即刪除且無法復原。")) return;
     setDeleteBusy(true);
     try {
       const res = await fetch(`/api/try-on/${job.jobId}`, { method: "DELETE" });
@@ -159,7 +159,7 @@ export default function TryOnResult({
         <button
           onClick={onRegenerate}
           disabled={!canRegenerate}
-          title={canRegenerate ? undefined : "已達今日生成或此商品重試上限"}
+          title={canRegenerate ? undefined : "目前無法重新生成"}
           className="rounded-lg border border-stone-300 px-4 py-2.5 text-sm hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           重新生成

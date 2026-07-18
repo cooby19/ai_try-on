@@ -15,9 +15,10 @@ const POLL_TIMEOUT_MS = 120_000; // 真實 VTO API 約 10~40 秒，保留餘裕
 type Step = "upload" | "ready" | "generating" | "done";
 
 interface Quota {
-  remainingToday: number;
-  remainingRetriesForProduct: number;
-  dailyLimit: number;
+  generationLimitsEnabled: boolean;
+  remainingToday?: number;
+  remainingRetriesForProduct?: number;
+  dailyLimit?: number;
   // 目前環境的預設生成模型；null 代表後端不開放選模型（mock 模式），前端隱藏選擇器
   defaultModel: TryOnModel | null;
 }
@@ -224,14 +225,11 @@ export default function TryOnLauncher({
   }
 
   // 重新生成專用：結果頁按鈕會進到這裡，先二次確認再生成。
-  // 「建立 job = 額度 +1」，一點就扣一格今日額度，結果頁按鈕又密集，
-  // 因此比照 deleteRecord 的原生 confirm 慣例加一道確認，避免誤點白扣額度。
   // 刻意只包在重新生成：第一次生成的「開始 AI 試穿」已是使用者刻意動作，不再攔。
   function handleRegenerate() {
-    // quota 尚未載入（fetch 失敗）時退用不帶數字的簡短文案，避免顯示 undefined
-    const message = quota
+    const message = quota?.generationLimitsEnabled
       ? `重新生成會使用一次今日額度（今日還剩 ${quota.remainingToday} 次、此商品還可生成 ${quota.remainingRetriesForProduct} 次），確定要繼續嗎？`
-      : "重新生成會使用一次今日額度，確定要繼續嗎？";
+      : "確定要重新生成這次試穿嗎？";
     if (!confirm(message)) return;
     handleGenerate();
   }
@@ -270,7 +268,7 @@ export default function TryOnLauncher({
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h2 className="text-lg font-semibold">AI 試穿 — {product.name}</h2>
-                {quota && (
+                {quota?.generationLimitsEnabled && (
                   <p className="text-xs text-stone-500 mt-0.5">
                     今日剩餘 {quota.remainingToday}/{quota.dailyLimit} 次 · 此商品還可生成{" "}
                     {quota.remainingRetriesForProduct} 次
@@ -330,7 +328,10 @@ export default function TryOnLauncher({
                 <div className="mt-5 flex gap-3">
                   <button
                     onClick={handleGenerate}
-                    disabled={quota?.remainingToday === 0 || quota?.remainingRetriesForProduct === 0}
+                    disabled={
+                      quota?.generationLimitsEnabled === true &&
+                      (quota.remainingToday === 0 || quota.remainingRetriesForProduct === 0)
+                    }
                     className="flex-1 rounded-lg bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     開始 AI 試穿
@@ -360,7 +361,8 @@ export default function TryOnLauncher({
                 variants={variants}
                 personPreview={job.personImageUrl ?? personPreview}
                 canRegenerate={
-                  (quota?.remainingToday ?? 0) > 0 && (quota?.remainingRetriesForProduct ?? 0) > 0
+                  quota?.generationLimitsEnabled !== true ||
+                  ((quota.remainingToday ?? 0) > 0 && (quota.remainingRetriesForProduct ?? 0) > 0)
                 }
                 onRegenerate={handleRegenerate}
                 onChangePhoto={resetToUpload}

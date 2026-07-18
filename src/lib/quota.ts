@@ -1,8 +1,8 @@
-// 成本控管（規格書第七節）：
-//   1. 每位使用者每日最多生成 3 次
-//   2. 每個商品每位使用者最多重試 2 次（首次 + 2 次重試 = 同商品最多 3 次）
-//   3. 平台每日預算到頂後全部熔斷
-//   4. 每次呼叫 AI API 前都必須先通過這裡的檢查
+// 成本控管：平台每日預算到頂後全部熔斷。
+//
+// 會員每日與同商品的生成次數限制暫時停用，方便目前規模的功能測試。
+// 保留常數與開關，日後只要把開關改回 true 即可恢復原有 3 次／2 次重試規則；
+// 資料庫 RPC 則以 null 表示不啟用該限制。
 //
 // 設計說明：額度不是存一個計數器欄位，而是直接統計 try_on_jobs 的當日筆數。
 // 這樣「建立 job 紀錄」本身就是 incrementGenerationUsage，不會有計數器與紀錄不同步的問題。
@@ -15,6 +15,7 @@ import type {
   TryOnJob,
 } from "./types";
 
+export const GENERATION_LIMITS_ENABLED = false;
 export const DAILY_GENERATION_LIMIT = 3;
 export const PER_PRODUCT_RETRY_LIMIT = 2;
 // 每日照片上傳上限：生成額度只管 try_on_jobs，上傳本身不建 job，
@@ -109,6 +110,18 @@ export async function checkGenerationQuota(
   userId: string,
   productId: string
 ): Promise<QuotaCheck> {
+  // 生成次數限制停用時，無須為了前置檢查額外查詢；最終仍會由 RPC
+  // 原子地保留平台每日預算與建立 job。
+  if (!GENERATION_LIMITS_ENABLED) {
+    return {
+      allowed: true,
+      usedToday: 0,
+      remainingToday: 0,
+      productAttemptsToday: 0,
+      remainingRetriesForProduct: 0,
+    };
+  }
+
   const supabase = getSupabaseAdmin();
   const since = todayStartUtcIso();
 
@@ -255,8 +268,10 @@ export async function recordTryOnJob(input: {
     p_cost_estimate: input.costEstimate,
     p_budget_reservation: input.budgetReservation,
     p_since: todayStartUtcIso(),
-    p_daily_limit: DAILY_GENERATION_LIMIT,
-    p_product_attempt_limit: 1 + PER_PRODUCT_RETRY_LIMIT,
+    // null 代表暫時關閉使用者／商品生成次數限制；migration 20260718010000
+    // 仍會在同一把鎖內強制執行平台預算熔斷與建立 job。
+    p_daily_limit: GENERATION_LIMITS_ENABLED ? DAILY_GENERATION_LIMIT : null,
+    p_product_attempt_limit: GENERATION_LIMITS_ENABLED ? 1 + PER_PRODUCT_RETRY_LIMIT : null,
     p_platform_daily_budget: platformDailyBudgetUsd(),
     p_seed: input.seed,
     p_config_snapshot: input.configSnapshot,
@@ -285,7 +300,9 @@ export async function recordTryOnJob(input: {
           : result.reject_reason === "platform"
             ? platformBudgetReason()
             : dailyLimitReason(),
-      remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - result.used_today),
+      remainingToday: GENERATION_LIMITS_ENABLED
+        ? Math.max(0, DAILY_GENERATION_LIMIT - result.used_today)
+        : 0,
     };
   }
   const job = parseTryOnJob(result.job);
@@ -305,7 +322,9 @@ export async function recordTryOnJob(input: {
   return {
     outcome: result.outcome,
     job,
-    remainingToday: Math.max(0, DAILY_GENERATION_LIMIT - result.used_today),
+    remainingToday: GENERATION_LIMITS_ENABLED
+      ? Math.max(0, DAILY_GENERATION_LIMIT - result.used_today)
+      : 0,
   };
 }
 

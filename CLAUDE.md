@@ -11,7 +11,7 @@
 - **定位**：第一版仍只支援上衣（`category = 'tops'`），但已具備尺寸規格、跨裝置購物車、地址簿、結帳、訂單、Mock 付款、庫存保留、取消／退款申請、客服與營運後台。Mock Payment 僅供封閉測試，尚不可宣稱可正式收款。
 - **會員登入**：使用 Supabase Auth（Google OAuth + Email 6 位數 OTP）；未登入可瀏覽商品，但 AI 試穿、額度與結果均需登入。Auth `user.id` 是正式使用者唯一 ID，不搬移匿名測試資料。
 - **核心機制**：
-  - 成本控管 — 每位會員每日最多生成 3 次、每商品每人最多重試 2 次，另有平台每日 USD 預算熔斷，失敗也計入額度。
+  - 成本控管 — 會員與商品的生成次數限制目前為測試暫時停用；平台每日 USD 預算熔斷仍生效，失敗也計入成本紀錄。
   - 回饋紀錄 — 使用者對結果按「滿意 / 不滿意」，寫入 `try_on_feedback` 表。
   - 隱私設計 — 照片存私有 bucket、前端只拿 1 小時不透明加密 URL、使用者可刪除自己的照片。
   - 購物與庫存 — 訪客購物車存於 localStorage，登入時冪等合併至帳號；結帳建立庫存保留，僅付款成功才扣減實際庫存。
@@ -117,8 +117,8 @@ vercel.json                        # 通知派送與資料保留 Cron
 2. 使用者上傳照片 → `POST /api/upload`：驗證格式（JPG/PNG/WebP、≤8MB、寬度 ≥320px）→ sharp 依 EXIF 轉正、壓成寬度 ≤1440 的 JPEG（quality 92，補 v1.6 的輸入解析度）→ 存入私有 bucket `person-uploads`（路徑 `{userId}/{uuid}.jpg`）→ 回傳 Storage 路徑 + 預覽用不透明短效 URL。
 3. 按「開始 AI 試穿」→ `POST /api/try-on`：
    - 驗證 `personImagePath` 必須以 `{userId}/` 開頭（防止拿別人的照片生成）。
-   - 選用欄位 `model`（`"v1.6"` 或 `"max"`）經 `resolveVTOProviderName()` 白名單映射成 provider 名稱（`fashn` / `fashn-max`）：不合法值回 400（此時尚未建 job、不占額度）；`VTO_PROVIDER=mock` 時忽略選擇一律用 mock；未傳則沿用 `VTO_PROVIDER` 預設。**前端不得直接傳 provider 內部名稱**（防止注入 `mock` 取得免費假結果）。兩種模型共用同一套每日額度，不分開計。
-   - `checkGenerationQuota()` 前置檢查會員每日 3 次與每商品 3 次（首次 + 2 次重試）上限——非原子、僅供快速失敗與友善訊息，防併發的最終判定在下一步。
+   - 選用欄位 `model`（`"v1.6"` 或 `"max"`）經 `resolveVTOProviderName()` 白名單映射成 provider 名稱（`fashn` / `fashn-max`）：不合法值回 400（此時尚未建 job、不占成本紀錄）；`VTO_PROVIDER=mock` 時忽略選擇一律用 mock；未傳則沿用 `VTO_PROVIDER` 預設。**前端不得直接傳 provider 內部名稱**（防止注入 `mock` 取得免費假結果）。
+   - `checkGenerationQuota()` 在生成次數限制停用期間直接放行；重新啟用時才以前置檢查提供友善訊息，防併發的最終判定仍在下一步。
    - `recordTryOnJob()` 呼叫 migration 005 的 `insert_try_on_job_within_quota`，以固定鎖順序原子檢查平台預算、Auth 使用者額度與商品重試後才插入 job。拒絕請求不呼叫 AI API。**建立紀錄本身就是額度與預算預留**，不用額外計數器欄位。
    - 從 Storage 下載人物照、載入上衣圖 → `provider.submit()` → 狀態改 `processing`，回傳 `jobId`。
    - 送出失敗時：狀態改 `failed` 並寫 `error_message`，回 502——**失敗仍占額度**（已產生 API 成本）。

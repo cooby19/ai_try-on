@@ -10,6 +10,10 @@ const numericFixMigrationPath = path.join(
   process.cwd(),
   "supabase/migrations/20260718000000_fix_try_on_budget_reservation_coalesce.sql",
 );
+const disableGenerationLimitsMigrationPath = path.join(
+  process.cwd(),
+  "supabase/migrations/20260718010000_disable_try_on_generation_limits.sql",
+);
 
 async function migrationSql(): Promise<string> {
   return readFile(migrationPath, "utf8");
@@ -17,6 +21,10 @@ async function migrationSql(): Promise<string> {
 
 async function numericFixMigrationSql(): Promise<string> {
   return readFile(numericFixMigrationPath, "utf8");
+}
+
+async function disableGenerationLimitsMigrationSql(): Promise<string> {
+  return readFile(disableGenerationLimitsMigrationPath, "utf8");
 }
 
 describe("Try-On migration contract（離線靜態保護）", () => {
@@ -62,6 +70,16 @@ describe("Try-On migration contract（離線靜態保護）", () => {
     expect(sql).not.toContain("pg_catalog.coalesce");
     expect(sql).toContain("security definer\nset search_path = ''");
     expect(sql).toContain("pg_catalog.pg_advisory_xact_lock");
+    expect(sql).toMatch(/from public, anon, authenticated;/);
+    expect(sql).toMatch(/to service_role;/);
+  });
+
+  it("生成次數限制可由 null 暫時停用，但平台預算與 RPC 安全邊界仍保留", async () => {
+    const sql = await disableGenerationLimitsMigrationSql();
+    expect(sql).toContain("p_daily_limit is not null and v_used_today >= p_daily_limit");
+    expect(sql).toContain("p_product_attempt_limit is not null and v_product_attempts >= p_product_attempt_limit");
+    expect(sql).toContain("v_platform_reserved + p_budget_reservation > p_platform_daily_budget");
+    expect(sql).toContain("security definer\nset search_path = ''");
     expect(sql).toMatch(/from public, anon, authenticated;/);
     expect(sql).toMatch(/to service_role;/);
   });
