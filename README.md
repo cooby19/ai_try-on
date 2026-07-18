@@ -218,6 +218,20 @@ npm run try-on:cases -- --json
 
 相同 commit 與參數的 JSON 輸出可 byte-for-byte 重現；golden 不提供自動更新模式，任何變更都必須人工審查 fixture diff。
 
+### Try-On 品質 Baseline
+
+Workflow golden、人工視覺品質 baseline 與 production metrics 是三種不同證據。`candidate.1` 保留最初「沒有真實輸出」的盤點；`candidate.2` 已保存 12 個 FASHN v1.6 真實結果、固定 seed、完整 config snapshot、輸入／輸出 hash 與 Codex 輔助初評，但人工 decision 仍為空，所以不能標成 approved。
+
+```bash
+# 唯讀驗證 candidate 的 schema、檔案、hash、圖片 metadata 與案例完整性
+npm run try-on:baseline:verify
+
+# Release gate；candidate 會預期失敗，只有人工核准版本能通過
+npm run try-on:baseline:verify -- --require-approved
+```
+
+完整評分門檻、人工核准流程與升版規則見 [docs/TRY_ON_QUALITY_BASELINE.md](docs/TRY_ON_QUALITY_BASELINE.md)。Verifier 不提供自動接受或 `--update`。
+
 ### Try-On Baseline Report
 
 `try-on:report` 以唯讀方式統計真實 Supabase job／Storage 資料，輸出成功率、結構化錯誤、生命週期延遲、記錄成本估算與 Storage／DB 使用情況；不會呼叫 VTO provider 或修改資料。若未提供 `DB_URL`，會安全降級使用後端 Supabase Data／Storage API，並把無法取得的 relation/database size 標為 `N/A`。

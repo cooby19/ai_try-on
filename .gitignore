@@ -41,3 +41,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# FASHN capture 的可續跑狀態含 Provider job ID，只留在本機；baseline 只提交 sanitized summary。
+/fixtures/try-on-baselines/*/capture-state.json
+
+# Supabase Dashboard 匯出的本機查詢草稿不屬於 schema／migration，保留在本機且不進版控。
+/supabase/snippets/

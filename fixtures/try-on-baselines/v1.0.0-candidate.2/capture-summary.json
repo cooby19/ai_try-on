@@ -1,0 +1,790 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "try-on-v1.0.0-candidate.2",
+  "provider": "fashn",
+  "modelName": "tryon-v1.6",
+  "startedAt": "2026-07-17T08:50:35.371Z",
+  "completedAt": "2026-07-17T08:54:58.546Z",
+  "submissionAttempts": 12,
+  "successes": 12,
+  "failures": 0,
+  "recordedCostEstimateUsd": 0.9,
+  "actualProviderCostUsd": null,
+  "actualProviderCostAvailable": false,
+  "enhancement": "none",
+  "persons": {
+    "model-01": {
+      "original": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+        "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "preprocessed": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+        "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      }
+    },
+    "model-02": {
+      "original": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-02.jpg",
+        "sha256": "733308265a568b84478a47e1281a057f31402ed4c12ad5150795601f453a0c83",
+        "mimeType": "image/jpeg",
+        "width": 4562,
+        "height": 6843
+      },
+      "preprocessed": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-02.jpg",
+        "sha256": "208edd460024e2eedb2d669732b5d46fa386b9b758c1388a55b75738370c4a17",
+        "mimeType": "image/jpeg",
+        "width": 1440,
+        "height": 2160
+      }
+    }
+  },
+  "garments": {
+    "garment-01-mint-sweatshirt": {
+      "original": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-01-mint-sweatshirt.jpg",
+        "sha256": "1c29f29bf76ea708dc7a6655c5b42839717e9eceb52ae315b8529dd693119c64",
+        "mimeType": "image/jpeg",
+        "width": 2100,
+        "height": 2800
+      },
+      "preprocessed": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-01-mint-sweatshirt.png",
+        "sha256": "96c3ed4089eaebc3b8d74e9107b2c3ebb01a0e0ced43eed7d60567931963c3bc",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1365
+      }
+    },
+    "garment-02-blue-tee": {
+      "original": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-02-blue-tee.jpg",
+        "sha256": "f8e52636f24c68d139ec8bcac511ed842b4eb3ce35d82c6d800d378df9864216",
+        "mimeType": "image/jpeg",
+        "width": 2100,
+        "height": 2800
+      },
+      "preprocessed": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-02-blue-tee.png",
+        "sha256": "6e1a0e92b3ef917b74402069162f63b7f10662d9cb055aca0ecd9ae0682235ac",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1365
+      }
+    },
+    "garment-03-gray-tee": {
+      "original": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-03-gray-tee.jpg",
+        "sha256": "613525cc1f5e25b46e4b1bf47921f5456676e553869bbcea1a5518eafc50f192",
+        "mimeType": "image/jpeg",
+        "width": 1200,
+        "height": 1600
+      },
+      "preprocessed": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-03-gray-tee.png",
+        "sha256": "7584f554ec6d8841bae55c6b91b80f7e1774561648cf14d45f1256af6f2b1054",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1365
+      }
+    },
+    "garment-04-orange-tee": {
+      "original": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-04-orange-tee.jpg",
+        "sha256": "1f8a83952d52273280d68e50030f0c65f5ae67991c2f0efe9c768e3fc7d566ed",
+        "mimeType": "image/jpeg",
+        "width": 2100,
+        "height": 2800
+      },
+      "preprocessed": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-04-orange-tee.png",
+        "sha256": "6336a2c60ca9e4fa82975d06c19f06b4b85e1319680ddc13de0cd10fb955689a",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1365
+      }
+    }
+  },
+  "excludedPersons": [
+    {
+      "id": "model-03-lowres-excluded",
+      "input": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-03-lowres-excluded.jpeg",
+        "sha256": "f48d3e5b5c546ef5e0b0a2dcd1be1c6dcc6d025c95c9fbed231c269d3459d0d7",
+        "mimeType": "image/jpeg",
+        "width": 183,
+        "height": 275
+      },
+      "reason": "寬度 183px，低於 production normalizePersonImage 的 320px 最低門檻；不送 Provider。"
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "v16-m01-g01-s10101",
+      "personId": "model-01",
+      "garmentId": "garment-01-mint-sweatshirt",
+      "seed": 10101,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:50:43.862Z",
+      "completedAt": "2026-07-17T08:51:03.819Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g01-s10101.jpg",
+        "sha256": "b80dc7ab3b2ce47511ea211a638eb3a8d3d3bbbc22665f6011f6efd12486122b",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 10101,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m01-g02-s10102",
+      "personId": "model-01",
+      "garmentId": "garment-02-blue-tee",
+      "seed": 10102,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:51:07.835Z",
+      "completedAt": "2026-07-17T08:51:21.635Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g02-s10102.jpg",
+        "sha256": "5ce3bcea3e7a0e1789fdd41ebfd4833846540240555345a8e7d199c42dc0a52d",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 10102,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m01-g03-s10103",
+      "personId": "model-01",
+      "garmentId": "garment-03-gray-tee",
+      "seed": 10103,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:51:25.795Z",
+      "completedAt": "2026-07-17T08:51:39.647Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g03-s10103.jpg",
+        "sha256": "c775b078cd726c92a3e8290680db5a63b7ad1e8949e0bfcb3442df4e006d5b5f",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 10103,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m01-g04-s10104",
+      "personId": "model-01",
+      "garmentId": "garment-04-orange-tee",
+      "seed": 10104,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:51:43.875Z",
+      "completedAt": "2026-07-17T08:51:57.269Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g04-s10104.jpg",
+        "sha256": "8d9c88923eecc0bb0adc22b0c64e27bfa6c0bd0391dad78a3b684c13333fb10c",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 10104,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m02-g01-s20101",
+      "personId": "model-02",
+      "garmentId": "garment-01-mint-sweatshirt",
+      "seed": 20101,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:52:01.876Z",
+      "completedAt": "2026-07-17T08:52:21.237Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m02-g01-s20101.jpg",
+        "sha256": "34259b8eefacadf9d2f81ab52ea4cc3f9cb054cd482f4906e59fc1422a60d977",
+        "mimeType": "image/jpeg",
+        "width": 864,
+        "height": 1296
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 20101,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m02-g02-s20102",
+      "personId": "model-02",
+      "garmentId": "garment-02-blue-tee",
+      "seed": 20102,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:52:25.323Z",
+      "completedAt": "2026-07-17T08:52:56.254Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m02-g02-s20102.jpg",
+        "sha256": "909f5cc6f42146d1870142471c2748161f4603f1086b99501b32fa658d96d90f",
+        "mimeType": "image/jpeg",
+        "width": 864,
+        "height": 1296
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 20102,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m02-g03-s20103",
+      "personId": "model-02",
+      "garmentId": "garment-03-gray-tee",
+      "seed": 20103,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:53:00.244Z",
+      "completedAt": "2026-07-17T08:53:19.510Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m02-g03-s20103.jpg",
+        "sha256": "15509fdee4328128f6a32061f64ec50ccf77da0de1535171b2f108dfc7e93808",
+        "mimeType": "image/jpeg",
+        "width": 864,
+        "height": 1296
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 20103,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m02-g04-s20104",
+      "personId": "model-02",
+      "garmentId": "garment-04-orange-tee",
+      "seed": 20104,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:53:23.536Z",
+      "completedAt": "2026-07-17T08:53:49.195Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m02-g04-s20104.jpg",
+        "sha256": "a572aa1e6d9f7ba4e4c9b5b041b0d787ad0a26c9e6bcb10359aebef036fda8cf",
+        "mimeType": "image/jpeg",
+        "width": 864,
+        "height": 1296
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 20104,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m01-g01-s30101",
+      "personId": "model-01",
+      "garmentId": "garment-01-mint-sweatshirt",
+      "seed": 30101,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:53:53.063Z",
+      "completedAt": "2026-07-17T08:54:06.597Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g01-s30101.jpg",
+        "sha256": "93a38c0ea897e65b6fddf42acba085ad90827f64be2712c0df809f73301afeac",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 30101,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m01-g02-s30102",
+      "personId": "model-01",
+      "garmentId": "garment-02-blue-tee",
+      "seed": 30102,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:54:10.492Z",
+      "completedAt": "2026-07-17T08:54:23.836Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g02-s30102.jpg",
+        "sha256": "0ca21e800f965095c8ff27eaecd59db7495fcd1b5d0f62289e6f4a32137be75c",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 30102,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m01-g03-s30103",
+      "personId": "model-01",
+      "garmentId": "garment-03-gray-tee",
+      "seed": 30103,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:54:27.587Z",
+      "completedAt": "2026-07-17T08:54:41.298Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g03-s30103.jpg",
+        "sha256": "e60a1b0434eaa442bbd56fa27411ce2afd02229a1c25b847d0fe99e47057ed3e",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 30103,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    },
+    {
+      "caseId": "v16-m01-g04-s30104",
+      "personId": "model-01",
+      "garmentId": "garment-04-orange-tee",
+      "seed": 30104,
+      "status": "success",
+      "submittedAt": "2026-07-17T08:54:45.301Z",
+      "completedAt": "2026-07-17T08:54:58.544Z",
+      "result": {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g04-s30104.jpg",
+        "sha256": "61432073d916884f254949376275e456015da4a6fa7c1cd7fe8dd89a1a5419a7",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      "configSnapshot": {
+        "schemaVersion": 1,
+        "provider": {
+          "name": "fashn",
+          "modelName": "tryon-v1.6",
+          "mode": "quality",
+          "resolution": null,
+          "outputFormat": "jpeg",
+          "outputCount": 1
+        },
+        "generation": {
+          "seed": 30104,
+          "garmentType": "tops",
+          "garmentPhotoType": "flat-lay"
+        },
+        "preprocessing": {
+          "personImage": {
+            "version": "person-image-v1",
+            "maxWidth": 1440,
+            "outputFormat": "jpeg",
+            "jpegQuality": 92
+          },
+          "garmentImage": {
+            "version": "garment-image-v1",
+            "maxWidth": 1024,
+            "outputFormat": "png"
+          }
+        },
+        "enhancement": {
+          "provider": "none",
+          "modelVersion": null,
+          "scale": null
+        },
+        "prompt": {
+          "version": "none",
+          "hash": null,
+          "value": null
+        }
+      }
+    }
+  ]
+}

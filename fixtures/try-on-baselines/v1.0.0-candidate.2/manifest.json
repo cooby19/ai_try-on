@@ -1,0 +1,2232 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "try-on-v1.0.0-candidate.2",
+  "status": "candidate",
+  "createdAt": "2026-07-17T08:50:35.371Z",
+  "dataWindow": {
+    "fromUtc": "2026-07-10T07:15:50.000Z",
+    "toUtc": "2026-07-17T07:15:50.000Z",
+    "interval": "[from, to)"
+  },
+  "approval": {
+    "reviewer": null,
+    "reviewedAt": null,
+    "decision": null,
+    "notes": null
+  },
+  "git": {
+    "commitSha": "80a96b2ed9ca56e68281806454cfe7c36d3fc16f",
+    "worktreeDirty": true,
+    "dirtyAtCandidateStart": [
+      "modified:CLAUDE.md",
+      "modified:README.md",
+      "modified:package.json",
+      "untracked:docs/TRY_ON_QUALITY_BASELINE.md",
+      "untracked:fixtures/try-on-baselines/v1.0.0-candidate.1/",
+      "untracked:scripts/verify-try-on-baseline.ts",
+      "untracked:src/lib/try-on/baseline-verifier.ts",
+      "untracked:supabase/snippets/"
+    ]
+  },
+  "workflowRegression": {
+    "status": "candidate_hash_reference",
+    "visualQualityClaim": false,
+    "fixture": {
+      "path": "fixtures/try-on-cases/cases.v1.json",
+      "sha256": "5ea3c5a582a37598a947e9231a55a32c68fa56182c8e9c4573c6efbed8819b58",
+      "caseCount": 16
+    },
+    "runnerCommand": "npm run try-on:cases -- --json",
+    "currentResult": {
+      "passed": 16,
+      "failed": 0,
+      "total": 16
+    },
+    "embeddedRunnerInputs": [
+      {
+        "id": "runner-person-v1",
+        "role": "person",
+        "identifier": "deterministic-person-image-v1",
+        "encoding": "utf8",
+        "mimeType": "application/octet-stream",
+        "sha256": "54315810963cd345108c698cd81fbac1facf049f57b16ce2636920ffb2798e0c"
+      },
+      {
+        "id": "runner-garment-v1",
+        "role": "garment",
+        "identifier": "deterministic-garment-image-v1",
+        "encoding": "utf8",
+        "mimeType": "application/octet-stream",
+        "sha256": "7c1c953a799ea0e06a3ff5abfbacddb3399366aebb5707aff8674ead5220e8fa"
+      }
+    ],
+    "cases": [
+      {
+        "caseId": "start-v16-explicit-seed-success",
+        "visualReviewEligible": false,
+        "definitionSha256": "5992c80d94a03e908a6049acce81a941ff05e22ac44bea25d03c74eea72414cf",
+        "expectedOutputSha256": "ed750385f99458de1b876ea9514f9f24cd2700a86c552c112e5e15419a7a6a25",
+        "traceSha256": "c82c58d724d24385fa4117daa7cd00f48cb1ca7622111331d4441ca115a9dbe5",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": "tryon-v1.6",
+          "seed": 123456789,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 123456789,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "start-max-explicit-seed-success",
+        "visualReviewEligible": false,
+        "definitionSha256": "861b433e3fb632d930139da0740ab6e0cf050123086e4ded5563622a02e4af2f",
+        "expectedOutputSha256": "7e21e4ddbdf7b95ca38f3f71777226e7f78ee133297f7d4cf592264d10fe4bdc",
+        "traceSha256": "b481c750dfe75f55936831a88dc0e1d024783edafcf369d010da138c5c1138b2",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn-max",
+          "modelName": "tryon-max",
+          "seed": 42,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn-max",
+              "modelName": "tryon-max",
+              "mode": "balanced",
+              "resolution": "1k",
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 42,
+              "garmentType": null,
+              "garmentPhotoType": null
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": ""
+            }
+          }
+        }
+      },
+      {
+        "caseId": "start-idempotent-generated-seed-and-replay",
+        "visualReviewEligible": false,
+        "definitionSha256": "638abf0572fa182f5df186065d25953707f6d92c8dbd82531de6a91ac6386b37",
+        "expectedOutputSha256": "c9171a7a541ad2cd005b07d7f2df62c4f05e5ae59d77856291bf1b0a70992668",
+        "traceSha256": "bdf9201b9852e4a90937235ab21cc5c9be302a8b2d163c9145eedb73e66800da",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": "tryon-v1.6",
+          "seed": 1400912348,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 1400912348,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "reject-missing-input",
+        "visualReviewEligible": false,
+        "definitionSha256": "af896f58926539e8040a533e9e7adb68dd88237340c55b7d868c40dc484f693f",
+        "expectedOutputSha256": "7008c2ffa42964b813e7d23cd79f0debed1b6b6861c60e42d2bcce77da388c1d",
+        "traceSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": null,
+          "seed": null,
+          "promptVersion": null,
+          "promptHash": null,
+          "configSnapshot": null
+        }
+      },
+      {
+        "caseId": "reject-unsupported-model",
+        "visualReviewEligible": false,
+        "definitionSha256": "f42ed5b61df0e7bfae0864670adb7e08444832adfa1fbfdc63e140d5176addfd",
+        "expectedOutputSha256": "b98dd2d4d15e374721d29604eddd25b98b402bbb918d847cf3f5103a691a2dcf",
+        "traceSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": null,
+          "seed": null,
+          "promptVersion": null,
+          "promptHash": null,
+          "configSnapshot": null
+        }
+      },
+      {
+        "caseId": "reject-unowned-person-image",
+        "visualReviewEligible": false,
+        "definitionSha256": "7fc43810f462283e9be3624a29e96cdca965cb42e0fc42fe6cbbb14831774b0b",
+        "expectedOutputSha256": "378cbc833816dd870c34eee80777ce8a40fac8f9c802afb8ba8cc5f99710efe8",
+        "traceSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": null,
+          "seed": null,
+          "promptVersion": null,
+          "promptHash": null,
+          "configSnapshot": null
+        }
+      },
+      {
+        "caseId": "reject-invalid-seed",
+        "visualReviewEligible": false,
+        "definitionSha256": "ae78d100a9d9212ea6731d7ed261c673ae38231ebaa0033487cced2d6c2c47c0",
+        "expectedOutputSha256": "221fa6e19d144481d31f8c7ebbf636254c9d6d98b00dfa9d5455098a0f1453bf",
+        "traceSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": null,
+          "seed": null,
+          "promptVersion": null,
+          "promptHash": null,
+          "configSnapshot": null
+        }
+      },
+      {
+        "caseId": "reject-invalid-idempotency-key",
+        "visualReviewEligible": false,
+        "definitionSha256": "c635e18762e60fb8d58b48bf0b5c55334c633a5588ebbec52a55b6ab845e4982",
+        "expectedOutputSha256": "fa52f20a59530068bc03835812f7dcf4c682cd69da8f2062073ba3a4b823da0e",
+        "traceSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": null,
+          "seed": null,
+          "promptVersion": null,
+          "promptHash": null,
+          "configSnapshot": null
+        }
+      },
+      {
+        "caseId": "reject-product-not-found-or-inactive",
+        "visualReviewEligible": false,
+        "definitionSha256": "2f23b01e6da60472b3c1e10e0cd3e37991e96c9c0eec493bd18513d26520893c",
+        "expectedOutputSha256": "f09b2194fa8ddb2c3c6ada575063afc4879ef1f2002eeaaae320a65a6638f88c",
+        "traceSha256": "531abd6c998b0194557314427c2a5155770d3a16e7f49f0fdf0cdab721c9f31f",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": null,
+          "seed": null,
+          "promptVersion": null,
+          "promptHash": null,
+          "configSnapshot": null
+        }
+      },
+      {
+        "caseId": "reject-quota-without-provider-call",
+        "visualReviewEligible": false,
+        "definitionSha256": "c3ffd03d567a54ebbf835c1aa72c8a68fd7403f2b39d13e426946d774ebfde04",
+        "expectedOutputSha256": "0a88dd6a18fa291d88f5dd0e35306a8f8df9596ba5e4d6355d0a1a0d69e83499",
+        "traceSha256": "3ed620b289ee16f19654f7497ccd5e432480b2edd0cd9636dfc51794f6e40ed5",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": null,
+          "seed": null,
+          "promptVersion": null,
+          "promptHash": null,
+          "configSnapshot": null
+        }
+      },
+      {
+        "caseId": "fail-person-image-read",
+        "visualReviewEligible": false,
+        "definitionSha256": "d36a1a6ba5de7e930aa5ab1b66ea43fd02343d7729fa4167b857138c4b631723",
+        "expectedOutputSha256": "d2733ec6f294284b9c763382b0bf3258cb2950a4690c9c906e91324b8677597c",
+        "traceSha256": "27d77b9ccf06656f7036dac6e700d309470b0c3edbea29f83bde65f8efa857b0",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": "tryon-v1.6",
+          "seed": 11,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 11,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "fail-garment-image-read",
+        "visualReviewEligible": false,
+        "definitionSha256": "0e347727caf0d7030ad76ddac7be2e4892548068675efbb96651be48f410f89f",
+        "expectedOutputSha256": "d910c72c17d1a067ce19f16333a5127d0791bded4f90818773b8dfe50b95203e",
+        "traceSha256": "a9d3fe83ca8247c3d558dbfb74f11b808442576b68aed2c99e6c16d46b252104",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": "tryon-v1.6",
+          "seed": 12,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 12,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "fail-provider-submit-http-503",
+        "visualReviewEligible": false,
+        "definitionSha256": "031a363fb11735cf688ac27a4799820877d1545ede37a139da4cb317afb97b90",
+        "expectedOutputSha256": "f4b1de929d52d8774149ab0d7bb33fda31ea289402049e96f96e5acc7af12b20",
+        "traceSha256": "2b5f0deaa6585e602fc6f1a02563a560f75dbcbe05a1735d3cf1025664c95a5c",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": "tryon-v1.6",
+          "seed": 13,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 13,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "conflict-same-key-different-intent",
+        "visualReviewEligible": false,
+        "definitionSha256": "a310573dc2f6ce789255dcbef83f7dec39434857c388f513bfc9abb5a1eabfe2",
+        "expectedOutputSha256": "8cf8039be98315ea2660c61e84c4aca4906170465bc71f8759a638323919bbc5",
+        "traceSha256": "10645cfd6c6d7bff1d23e2874d86eda62d07085c6c29783dd4724cfd2af567ee",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": "tryon-v1.6",
+          "seed": 777,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 777,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "poll-processing-then-success",
+        "visualReviewEligible": false,
+        "definitionSha256": "9cc58bd1e6cd261a72e986c468d4780ccf352f57fbbe62751ca4604ca52bfc56",
+        "expectedOutputSha256": "3814c6b24fa15bf3ec2804ab15fa47bf90cbf2e579eeb9620959352d15c5b604",
+        "traceSha256": "8cac457af2e7ebbbb637f83381dcec78c915442457e4d505076c500269887d8b",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": "tryon-v1.6",
+          "seed": 777,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 777,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "poll-provider-rejected",
+        "visualReviewEligible": false,
+        "definitionSha256": "83c5fbd9ba132e28a41517fb18fd2fe263aabf473eda6b5a43a79995bb6759da",
+        "expectedOutputSha256": "6eb3853c6ae02f2856af103de3eb02bae598aa2340d11c7f69c1650160877bcf",
+        "traceSha256": "7cb1c23b68510477a8b5740c480fde24547c96df225a907fd7aceb931e0cc38d",
+        "embeddedInputIds": [
+          "runner-person-v1",
+          "runner-garment-v1"
+        ],
+        "execution": {
+          "provider": "fashn",
+          "modelName": "tryon-v1.6",
+          "seed": 777,
+          "promptVersion": "none",
+          "promptHash": null,
+          "configSnapshot": {
+            "schemaVersion": 1,
+            "provider": {
+              "name": "fashn",
+              "modelName": "tryon-v1.6",
+              "mode": "quality",
+              "resolution": null,
+              "outputFormat": "jpeg",
+              "outputCount": 1
+            },
+            "generation": {
+              "seed": 777,
+              "garmentType": "tops",
+              "garmentPhotoType": "flat-lay"
+            },
+            "preprocessing": {
+              "personImage": {
+                "version": "person-image-v1",
+                "maxWidth": 1440,
+                "outputFormat": "jpeg",
+                "jpegQuality": 92
+              },
+              "garmentImage": {
+                "version": "garment-image-v1",
+                "maxWidth": 1024,
+                "outputFormat": "png"
+              }
+            },
+            "enhancement": {
+              "provider": "none",
+              "modelVersion": null,
+              "scale": null
+            },
+            "prompt": {
+              "version": "none",
+              "hash": null,
+              "value": null
+            }
+          }
+        }
+      }
+    ]
+  },
+  "visualQuality": {
+    "status": "candidate",
+    "visualQualityClaim": false,
+    "rubricVersion": "1.0.0",
+    "scale": {
+      "minimum": 1,
+      "maximum": 5,
+      "acceptableMinimumPerDimension": 3,
+      "acceptableMinimumAverage": 4,
+      "criticalDefectAllowed": false
+    },
+    "dimensions": [
+      "identity_face_fidelity",
+      "garment_style_color_pattern_material_fidelity",
+      "body_garment_geometry",
+      "occlusion_arms_hair_boundaries",
+      "lighting_scene_consistency",
+      "artifact_control"
+    ],
+    "reviewDocument": {
+      "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/REVIEW.md",
+      "sha256": "774ddbc2a667f9a275016f6f54eed554d19a1918d3da3f43f5a6e5caf61d3a95"
+    },
+    "reviewArtifacts": [
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/GALLERY.html",
+        "sha256": "41e4b07c99b774f02943f94390456f94237dd27f0d33bd71bf50d75c51112adf"
+      },
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/capture-plan.json",
+        "sha256": "1d96c69bf796098d81b7932e2bd8aee6d81df1537086e1a51f14ed112e175712"
+      },
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/capture-summary.json",
+        "sha256": "bd53dbf7b532086e5cb70020f1e31615595fd86d47258963263f2cd78589ef02"
+      }
+    ],
+    "captureSummary": {
+      "submissions": 12,
+      "successes": 12,
+      "failures": 0,
+      "recordedCostEstimateUsd": 0.9,
+      "actualProviderCostUsd": null,
+      "actualProviderCostAvailable": false,
+      "enhancement": "none"
+    },
+    "availableInputs": [
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+        "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+        "mimeType": "image/jpeg",
+        "width": 387,
+        "height": 516
+      },
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-02.jpg",
+        "sha256": "733308265a568b84478a47e1281a057f31402ed4c12ad5150795601f453a0c83",
+        "mimeType": "image/jpeg",
+        "width": 4562,
+        "height": 6843
+      },
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-01-mint-sweatshirt.jpg",
+        "sha256": "1c29f29bf76ea708dc7a6655c5b42839717e9eceb52ae315b8529dd693119c64",
+        "mimeType": "image/jpeg",
+        "width": 2100,
+        "height": 2800
+      },
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-02-blue-tee.jpg",
+        "sha256": "f8e52636f24c68d139ec8bcac511ed842b4eb3ce35d82c6d800d378df9864216",
+        "mimeType": "image/jpeg",
+        "width": 2100,
+        "height": 2800
+      },
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-03-gray-tee.jpg",
+        "sha256": "613525cc1f5e25b46e4b1bf47921f5456676e553869bbcea1a5518eafc50f192",
+        "mimeType": "image/jpeg",
+        "width": 1200,
+        "height": 1600
+      },
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-04-orange-tee.jpg",
+        "sha256": "1f8a83952d52273280d68e50030f0c65f5ae67991c2f0efe9c768e3fc7d566ed",
+        "mimeType": "image/jpeg",
+        "width": 2100,
+        "height": 2800
+      },
+      {
+        "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-03-lowres-excluded.jpeg",
+        "sha256": "f48d3e5b5c546ef5e0b0a2dcd1be1c6dcc6d025c95c9fbed231c269d3459d0d7",
+        "mimeType": "image/jpeg",
+        "width": 183,
+        "height": 275
+      }
+    ],
+    "excludedInputs": [
+      {
+        "id": "model-03-lowres-excluded",
+        "input": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-03-lowres-excluded.jpeg",
+          "sha256": "f48d3e5b5c546ef5e0b0a2dcd1be1c6dcc6d025c95c9fbed231c269d3459d0d7",
+          "mimeType": "image/jpeg",
+          "width": 183,
+          "height": 275
+        },
+        "reason": "寬度 183px，低於 production normalizePersonImage 的 320px 最低門檻；不送 Provider。"
+      }
+    ],
+    "cases": [
+      {
+        "caseId": "v16-m01-g01-s10101",
+        "personId": "model-01",
+        "garmentId": "garment-01-mint-sweatshirt",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+            "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-01-mint-sweatshirt.png",
+            "sha256": "96c3ed4089eaebc3b8d74e9107b2c3ebb01a0e0ced43eed7d60567931963c3bc",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+            "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-01-mint-sweatshirt.jpg",
+            "sha256": "1c29f29bf76ea708dc7a6655c5b42839717e9eceb52ae315b8529dd693119c64",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g01-s10101.jpg",
+          "sha256": "b80dc7ab3b2ce47511ea211a638eb3a8d3d3bbbc22665f6011f6efd12486122b",
+          "mimeType": "image/jpeg",
+          "width": 387,
+          "height": 516
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 10101,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 10101,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:50:43.862Z",
+          "completedAt": "2026-07-17T08:51:03.819Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 4,
+            "bodyGarmentGeometry": 4,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 4
+          },
+          "average": 4.17,
+          "criticalDefect": false,
+          "recommendation": "accept_candidate",
+          "notes": "色彩與 sweatshirt 特徵保留；袖口較短但整體自然。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m01-g02-s10102",
+        "personId": "model-01",
+        "garmentId": "garment-02-blue-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+            "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-02-blue-tee.png",
+            "sha256": "6e1a0e92b3ef917b74402069162f63b7f10662d9cb055aca0ecd9ae0682235ac",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+            "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-02-blue-tee.jpg",
+            "sha256": "f8e52636f24c68d139ec8bcac511ed842b4eb3ce35d82c6d800d378df9864216",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g02-s10102.jpg",
+          "sha256": "5ce3bcea3e7a0e1789fdd41ebfd4833846540240555345a8e7d199c42dc0a52d",
+          "mimeType": "image/jpeg",
+          "width": 387,
+          "height": 516
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 10102,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 10102,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:51:07.835Z",
+          "completedAt": "2026-07-17T08:51:21.635Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 5,
+            "bodyGarmentGeometry": 4,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 4
+          },
+          "average": 4.33,
+          "criticalDefect": false,
+          "recommendation": "accept_candidate",
+          "notes": "藍色與橫向材質層次清楚，邊界可接受。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m01-g03-s10103",
+        "personId": "model-01",
+        "garmentId": "garment-03-gray-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+            "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-03-gray-tee.png",
+            "sha256": "7584f554ec6d8841bae55c6b91b80f7e1774561648cf14d45f1256af6f2b1054",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+            "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-03-gray-tee.jpg",
+            "sha256": "613525cc1f5e25b46e4b1bf47921f5456676e553869bbcea1a5518eafc50f192",
+            "mimeType": "image/jpeg",
+            "width": 1200,
+            "height": 1600
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g03-s10103.jpg",
+          "sha256": "c775b078cd726c92a3e8290680db5a63b7ad1e8949e0bfcb3442df4e006d5b5f",
+          "mimeType": "image/jpeg",
+          "width": 387,
+          "height": 516
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 10103,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 10103,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:51:25.795Z",
+          "completedAt": "2026-07-17T08:51:39.647Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 4,
+            "bodyGarmentGeometry": 4,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 3
+          },
+          "average": 4,
+          "criticalDefect": false,
+          "recommendation": "accept_candidate",
+          "notes": "領口與下擺有些微原衣層次。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m01-g04-s10104",
+        "personId": "model-01",
+        "garmentId": "garment-04-orange-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+            "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-04-orange-tee.png",
+            "sha256": "6336a2c60ca9e4fa82975d06c19f06b4b85e1319680ddc13de0cd10fb955689a",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+            "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-04-orange-tee.jpg",
+            "sha256": "1f8a83952d52273280d68e50030f0c65f5ae67991c2f0efe9c768e3fc7d566ed",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g04-s10104.jpg",
+          "sha256": "8d9c88923eecc0bb0adc22b0c64e27bfa6c0bd0391dad78a3b684c13333fb10c",
+          "mimeType": "image/jpeg",
+          "width": 387,
+          "height": 516
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 10104,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 10104,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:51:43.875Z",
+          "completedAt": "2026-07-17T08:51:57.269Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 4,
+            "bodyGarmentGeometry": 3,
+            "occlusionArmsHairBoundaries": 3,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 2
+          },
+          "average": 3.5,
+          "criticalDefect": false,
+          "recommendation": "reject",
+          "notes": "頸部新增深色紋樣，腰部下擺偏斜。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m02-g01-s20101",
+        "personId": "model-02",
+        "garmentId": "garment-01-mint-sweatshirt",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-02.jpg",
+            "sha256": "208edd460024e2eedb2d669732b5d46fa386b9b758c1388a55b75738370c4a17",
+            "mimeType": "image/jpeg",
+            "width": 1440,
+            "height": 2160
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-01-mint-sweatshirt.png",
+            "sha256": "96c3ed4089eaebc3b8d74e9107b2c3ebb01a0e0ced43eed7d60567931963c3bc",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-02.jpg",
+            "sha256": "733308265a568b84478a47e1281a057f31402ed4c12ad5150795601f453a0c83",
+            "mimeType": "image/jpeg",
+            "width": 4562,
+            "height": 6843
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-01-mint-sweatshirt.jpg",
+            "sha256": "1c29f29bf76ea708dc7a6655c5b42839717e9eceb52ae315b8529dd693119c64",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m02-g01-s20101.jpg",
+          "sha256": "34259b8eefacadf9d2f81ab52ea4cc3f9cb054cd482f4906e59fc1422a60d977",
+          "mimeType": "image/jpeg",
+          "width": 864,
+          "height": 1296
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 20101,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 20101,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:52:01.876Z",
+          "completedAt": "2026-07-17T08:52:21.237Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 4,
+            "bodyGarmentGeometry": 4,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 3
+          },
+          "average": 4,
+          "criticalDefect": false,
+          "recommendation": "accept_candidate",
+          "notes": "版型與顏色合理；領口有鏈條／原衣殘留細節。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m02-g02-s20102",
+        "personId": "model-02",
+        "garmentId": "garment-02-blue-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-02.jpg",
+            "sha256": "208edd460024e2eedb2d669732b5d46fa386b9b758c1388a55b75738370c4a17",
+            "mimeType": "image/jpeg",
+            "width": 1440,
+            "height": 2160
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-02-blue-tee.png",
+            "sha256": "6e1a0e92b3ef917b74402069162f63b7f10662d9cb055aca0ecd9ae0682235ac",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-02.jpg",
+            "sha256": "733308265a568b84478a47e1281a057f31402ed4c12ad5150795601f453a0c83",
+            "mimeType": "image/jpeg",
+            "width": 4562,
+            "height": 6843
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-02-blue-tee.jpg",
+            "sha256": "f8e52636f24c68d139ec8bcac511ed842b4eb3ce35d82c6d800d378df9864216",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m02-g02-s20102.jpg",
+          "sha256": "909f5cc6f42146d1870142471c2748161f4603f1086b99501b32fa658d96d90f",
+          "mimeType": "image/jpeg",
+          "width": 864,
+          "height": 1296
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 20102,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 20102,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:52:25.323Z",
+          "completedAt": "2026-07-17T08:52:56.254Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 4,
+            "bodyGarmentGeometry": 3,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 3
+          },
+          "average": 3.83,
+          "criticalDefect": false,
+          "recommendation": "reject",
+          "notes": "原本襯衫下擺明顯殘留。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m02-g03-s20103",
+        "personId": "model-02",
+        "garmentId": "garment-03-gray-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-02.jpg",
+            "sha256": "208edd460024e2eedb2d669732b5d46fa386b9b758c1388a55b75738370c4a17",
+            "mimeType": "image/jpeg",
+            "width": 1440,
+            "height": 2160
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-03-gray-tee.png",
+            "sha256": "7584f554ec6d8841bae55c6b91b80f7e1774561648cf14d45f1256af6f2b1054",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-02.jpg",
+            "sha256": "733308265a568b84478a47e1281a057f31402ed4c12ad5150795601f453a0c83",
+            "mimeType": "image/jpeg",
+            "width": 4562,
+            "height": 6843
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-03-gray-tee.jpg",
+            "sha256": "613525cc1f5e25b46e4b1bf47921f5456676e553869bbcea1a5518eafc50f192",
+            "mimeType": "image/jpeg",
+            "width": 1200,
+            "height": 1600
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m02-g03-s20103.jpg",
+          "sha256": "15509fdee4328128f6a32061f64ec50ccf77da0de1535171b2f108dfc7e93808",
+          "mimeType": "image/jpeg",
+          "width": 864,
+          "height": 1296
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 20103,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 20103,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:53:00.244Z",
+          "completedAt": "2026-07-17T08:53:19.510Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 4,
+            "bodyGarmentGeometry": 3,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 3
+          },
+          "average": 3.83,
+          "criticalDefect": false,
+          "recommendation": "reject",
+          "notes": "原本襯衫下擺明顯殘留。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m02-g04-s20104",
+        "personId": "model-02",
+        "garmentId": "garment-04-orange-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-02.jpg",
+            "sha256": "208edd460024e2eedb2d669732b5d46fa386b9b758c1388a55b75738370c4a17",
+            "mimeType": "image/jpeg",
+            "width": 1440,
+            "height": 2160
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-04-orange-tee.png",
+            "sha256": "6336a2c60ca9e4fa82975d06c19f06b4b85e1319680ddc13de0cd10fb955689a",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-02.jpg",
+            "sha256": "733308265a568b84478a47e1281a057f31402ed4c12ad5150795601f453a0c83",
+            "mimeType": "image/jpeg",
+            "width": 4562,
+            "height": 6843
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-04-orange-tee.jpg",
+            "sha256": "1f8a83952d52273280d68e50030f0c65f5ae67991c2f0efe9c768e3fc7d566ed",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m02-g04-s20104.jpg",
+          "sha256": "a572aa1e6d9f7ba4e4c9b5b041b0d787ad0a26c9e6bcb10359aebef036fda8cf",
+          "mimeType": "image/jpeg",
+          "width": 864,
+          "height": 1296
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 20104,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 20104,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:53:23.536Z",
+          "completedAt": "2026-07-17T08:53:49.195Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 5,
+            "bodyGarmentGeometry": 5,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 4
+          },
+          "average": 4.5,
+          "criticalDefect": false,
+          "recommendation": "accept_candidate",
+          "notes": "色彩、長度、幾何與人物保真穩定。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m01-g01-s30101",
+        "personId": "model-01",
+        "garmentId": "garment-01-mint-sweatshirt",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+            "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-01-mint-sweatshirt.png",
+            "sha256": "96c3ed4089eaebc3b8d74e9107b2c3ebb01a0e0ced43eed7d60567931963c3bc",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+            "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-01-mint-sweatshirt.jpg",
+            "sha256": "1c29f29bf76ea708dc7a6655c5b42839717e9eceb52ae315b8529dd693119c64",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g01-s30101.jpg",
+          "sha256": "93a38c0ea897e65b6fddf42acba085ad90827f64be2712c0df809f73301afeac",
+          "mimeType": "image/jpeg",
+          "width": 387,
+          "height": 516
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 30101,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 30101,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:53:53.063Z",
+          "completedAt": "2026-07-17T08:54:06.597Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 3,
+            "bodyGarmentGeometry": 4,
+            "occlusionArmsHairBoundaries": 3,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 3
+          },
+          "average": 3.67,
+          "criticalDefect": false,
+          "recommendation": "reject",
+          "notes": "深色側邊區塊與服裝原圖不一致。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m01-g02-s30102",
+        "personId": "model-01",
+        "garmentId": "garment-02-blue-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+            "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-02-blue-tee.png",
+            "sha256": "6e1a0e92b3ef917b74402069162f63b7f10662d9cb055aca0ecd9ae0682235ac",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+            "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-02-blue-tee.jpg",
+            "sha256": "f8e52636f24c68d139ec8bcac511ed842b4eb3ce35d82c6d800d378df9864216",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g02-s30102.jpg",
+          "sha256": "0ca21e800f965095c8ff27eaecd59db7495fcd1b5d0f62289e6f4a32137be75c",
+          "mimeType": "image/jpeg",
+          "width": 387,
+          "height": 516
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 30102,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 30102,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:54:10.492Z",
+          "completedAt": "2026-07-17T08:54:23.836Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 5,
+            "bodyGarmentGeometry": 4,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 4
+          },
+          "average": 4.33,
+          "criticalDefect": false,
+          "recommendation": "accept_candidate",
+          "notes": "輪廓、顏色與材質穩定。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m01-g03-s30103",
+        "personId": "model-01",
+        "garmentId": "garment-03-gray-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+            "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-03-gray-tee.png",
+            "sha256": "7584f554ec6d8841bae55c6b91b80f7e1774561648cf14d45f1256af6f2b1054",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+            "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-03-gray-tee.jpg",
+            "sha256": "613525cc1f5e25b46e4b1bf47921f5456676e553869bbcea1a5518eafc50f192",
+            "mimeType": "image/jpeg",
+            "width": 1200,
+            "height": 1600
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g03-s30103.jpg",
+          "sha256": "e60a1b0434eaa442bbd56fa27411ce2afd02229a1c25b847d0fe99e47057ed3e",
+          "mimeType": "image/jpeg",
+          "width": 387,
+          "height": 516
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 30103,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 30103,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:54:27.587Z",
+          "completedAt": "2026-07-17T08:54:41.298Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 5,
+            "bodyGarmentGeometry": 4,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 4
+          },
+          "average": 4.33,
+          "criticalDefect": false,
+          "recommendation": "accept_candidate",
+          "notes": "領口與下擺比第一 seed 更乾淨。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      },
+      {
+        "caseId": "v16-m01-g04-s30104",
+        "personId": "model-01",
+        "garmentId": "garment-04-orange-tee",
+        "inputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/models/model-01.jpg",
+            "sha256": "6dae813d0ee3ff88c358d92fbc3e4ee1b5cfbac115a02d56f060645d6afc8f49",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/preprocessed/garments/garment-04-orange-tee.png",
+            "sha256": "6336a2c60ca9e4fa82975d06c19f06b4b85e1319680ddc13de0cd10fb955689a",
+            "mimeType": "image/png",
+            "width": 1024,
+            "height": 1365
+          }
+        ],
+        "originalInputs": [
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/models/model-01.jpeg",
+            "sha256": "4f20dc2be1933a68d15bdc2c43b0f528bf03e80418f74b2d3881579080211d27",
+            "mimeType": "image/jpeg",
+            "width": 387,
+            "height": 516
+          },
+          {
+            "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/inputs/garments/garment-04-orange-tee.jpg",
+            "sha256": "1f8a83952d52273280d68e50030f0c65f5ae67991c2f0efe9c768e3fc7d566ed",
+            "mimeType": "image/jpeg",
+            "width": 2100,
+            "height": 2800
+          }
+        ],
+        "output": {
+          "path": "fixtures/try-on-baselines/v1.0.0-candidate.2/results/v16-m01-g04-s30104.jpg",
+          "sha256": "61432073d916884f254949376275e456015da4a6fa7c1cd7fe8dd89a1a5419a7",
+          "mimeType": "image/jpeg",
+          "width": 387,
+          "height": 516
+        },
+        "provider": "fashn",
+        "modelName": "tryon-v1.6",
+        "seed": 30104,
+        "promptVersion": "none",
+        "promptHash": null,
+        "configSnapshot": {
+          "schemaVersion": 1,
+          "provider": {
+            "name": "fashn",
+            "modelName": "tryon-v1.6",
+            "mode": "quality",
+            "resolution": null,
+            "outputFormat": "jpeg",
+            "outputCount": 1
+          },
+          "generation": {
+            "seed": 30104,
+            "garmentType": "tops",
+            "garmentPhotoType": "flat-lay"
+          },
+          "preprocessing": {
+            "personImage": {
+              "version": "person-image-v1",
+              "maxWidth": 1440,
+              "outputFormat": "jpeg",
+              "jpegQuality": 92
+            },
+            "garmentImage": {
+              "version": "garment-image-v1",
+              "maxWidth": 1024,
+              "outputFormat": "png"
+            }
+          },
+          "enhancement": {
+            "provider": "none",
+            "modelVersion": null,
+            "scale": null
+          },
+          "prompt": {
+            "version": "none",
+            "hash": null,
+            "value": null
+          }
+        },
+        "capture": {
+          "submittedAt": "2026-07-17T08:54:45.301Z",
+          "completedAt": "2026-07-17T08:54:58.544Z",
+          "recordedCostEstimateUsd": 0.075
+        },
+        "assistantPreliminaryAssessment": {
+          "rubricVersion": "1.0.0",
+          "scores": {
+            "identityFaceFidelity": 5,
+            "garmentFidelity": 5,
+            "bodyGarmentGeometry": 4,
+            "occlusionArmsHairBoundaries": 4,
+            "lightingSceneConsistency": 4,
+            "artifactControl": 4
+          },
+          "average": 4.33,
+          "criticalDefect": false,
+          "recommendation": "accept_candidate",
+          "notes": "沒有第一 seed 的頸部紋樣，整體自然。",
+          "isHumanApproval": false
+        },
+        "review": {
+          "reviewer": null,
+          "reviewedAt": null,
+          "decision": null,
+          "notes": null
+        }
+      }
+    ],
+    "blockers": [
+      "Reviewer identity, review time, and final decisions require explicit human input.",
+      "The worktree was dirty before this candidate was prepared, so it cannot be approved in place.",
+      "Assistant preliminary assessments are not human approvals."
+    ]
+  },
+  "productionMetricsReference": {
+    "visualQualityClaim": false,
+    "source": "supabase-api+readonly-sql",
+    "generatedAt": "2026-07-17T07:15:50.000Z",
+    "reports": [
+      {
+        "path": "docs/reports/try-on-baseline-2026-07-17.json",
+        "sha256": "106ad991309e8a1bf0253adabf5e2430c5777402f891edba71ab17aa4eeb24f8"
+      },
+      {
+        "path": "docs/reports/try-on-baseline-2026-07-17.md",
+        "sha256": "0354da50112512a603158a0be3e02c22056defa5a024fc3c00e98e51842737cf"
+      }
+    ],
+    "actualProviderCostAvailable": false
+  },
+  "versionPolicy": {
+    "major": "input set or review rubric changes",
+    "minor": "provider, model, prompt, or preprocessing changes",
+    "patch": "metadata-only correction that does not affect content or decisions",
+    "immutableDirectories": true
+  }
+}

@@ -228,6 +228,7 @@ vercel.json                        # 通知派送與資料保留 Cron
 - **常數位置**：額度規則在 `src/lib/quota.ts`（`DAILY_GENERATION_LIMIT`、`PER_PRODUCT_RETRY_LIMIT`）；照片限制在 `src/lib/validation.ts`；輪詢間隔在 `TryOnLauncher.tsx`。調整規則直接改常數，不要散落新數字。
 - **測試**：Vitest（`npm run test` 一次執行、`npm run test:watch` 監看模式），設定在 `vitest.config.ts`。`npm run try-on:cases` 另以固定時間、ID、seed、DB／Storage／Provider 跑 16 個 versioned golden scenarios，可用 `--case <id>` 或 `--json`；兩套測試都完全離線，不碰真實服務也不花錢。
 - **唯讀 baseline report**：`npm run try-on:report` 統計真實 `try_on_jobs` 與私有 Storage metadata；有 `DB_URL` 時用 read-only transaction 取得 DB size，否則降級至 Supabase API 並把不可取得欄位標為 `N/A`。不得把固定案例當 production 指標，也不得在報告輸出逐筆 ID、路徑、signed URL、idempotency key 或原始錯誤訊息；完整口徑見 `docs/TRY_ON_BASELINE_REPORT.md`。
+- **品質 baseline**：`npm run try-on:baseline:verify` 只讀檢查 versioned manifest、檔案 hash、圖片 metadata 與 Workflow case hash；`--require-approved` 只允許乾淨 commit 上、由人工明確 Accept 的真實視覺案例。不得將 16/16 Workflow pass 或 production metrics report 當成視覺品質核准，也不得加入自動接受／`--update`。
 - **Lint**：ESLint（`npm run lint`），flat config 在 `eslint.config.mjs`。底線開頭的參數視為刻意未使用；規則誤判或介面保留參數時，沿用「附繁中理由的 `eslint-disable` 註解」慣例（見 `TryOnLauncher.tsx`、`AddToCartButton.tsx`），不要整條規則關掉。
 - **CI/CD**：GitHub Actions 在每個 push 與 pull request 以 Node 22 執行 `npm ci`、`npm run test`、`npm run try-on:cases -- --json`、`npm run lint`。端到端與 Supabase migration／RLS 驗證仍需依 README、`docs/DEPLOY_VERCEL.md` 與 `docs/V1_OPERATIONS.md` 的清單手動驗證。
 - **部署方式**：目標平台為 Vercel；`vercel.json` 已定義通知派送與資料保留 Cron。部署前必須遵循 `docs/DEPLOY_VERCEL.md` 與 `docs/V1_OPERATIONS.md`，且不能把 Mock Payment 當作正式金流。
