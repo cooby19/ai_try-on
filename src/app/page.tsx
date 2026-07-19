@@ -27,7 +27,7 @@ export default async function HomePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-1">上衣</h1>
+      <h1 className="text-2xl font-semibold mb-1">商品</h1>
       <p className="text-sm text-stone-500 mb-6">選一件商品，上傳照片體驗 AI 試穿。</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {products.map((p) => (

@@ -3,6 +3,7 @@ import type { AtomicJobCreationResult, QuotaCheck } from "../quota";
 import type {
   JobStatus,
   Product,
+  TryOnGarmentType,
   TryOnErrorType,
   TryOnJob,
   TryOnJobView,
@@ -95,6 +96,7 @@ export interface TryOnWorkflowDependencies {
     providerName: string,
     seed: number,
     featureDecision?: ResolvedTryOnFeatureDecision | null,
+    garmentType?: TryOnGarmentType,
   ): ResolvedTryOnConfig;
   isOwnedPersonImagePath(userId: string, personImagePath: string): boolean;
   findJobByIdempotency(userId: string, idempotencyKey: string): Promise<TryOnJob | null>;
@@ -158,6 +160,15 @@ function storedConfigSnapshot(job: TryOnJob): ResolvedTryOnConfig["snapshot"] | 
   return snapshot as ResolvedTryOnConfig["snapshot"];
 }
 
+function garmentTypeForProduct(product: Product): TryOnGarmentType {
+  return product.category === "bottoms" ? "bottoms" : "tops";
+}
+
+// 舊任務的 frozen snapshot 沒有分類資料；它們都是上衣時期建立的，保守回退為 tops。
+function garmentTypeForJob(job: TryOnJob): TryOnGarmentType {
+  return storedConfigSnapshot(job)?.generation.garmentType === "bottoms" ? "bottoms" : "tops";
+}
+
 function storedEnhancementConfig(job: TryOnJob): ResolvedEnhancementConfig | undefined {
   const snapshot = storedConfigSnapshot(job);
   const enhancement = snapshot?.enhancement;
@@ -218,7 +229,7 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       context: {
         personImage,
         garmentImage: await deps.loadGarmentImage(job.garment_image_url),
-        garmentType: "tops",
+        garmentType: garmentTypeForJob(job),
       },
     };
   }
@@ -316,19 +327,19 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       };
     }
 
+    if (!deps.isOwnedPersonImagePath(input.userId, input.personImagePath)) {
+      return {
+        ok: false,
+        code: "invalid_person_image",
+        message: "照片來源驗證失敗，請重新上傳照片。",
+      };
+    }
     const requestedProviderName = deps.resolveProviderName(input.requestedModel);
     if (!requestedProviderName) {
       return {
         ok: false,
         code: "unsupported_model",
         message: "不支援的生成模型，請重新整理頁面後再選擇一次。",
-      };
-    }
-    if (!deps.isOwnedPersonImagePath(input.userId, input.personImagePath)) {
-      return {
-        ok: false,
-        code: "invalid_person_image",
-        message: "照片來源驗證失敗，請重新上傳照片。",
       };
     }
     if (input.seed !== undefined && !isValidGenerationSeed(input.seed)) {
@@ -346,6 +357,23 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       };
     }
 
+    // 先讀商品以解析服裝類型，確保 idempotency replay 與新任務使用同一類型設定。
+    const product = await deps.loadProduct(input.productId);
+    if (!product) {
+      return {
+        ok: false,
+        code: "product_not_found",
+        message: "找不到這個商品，請重新整理頁面。",
+      };
+    }
+    const garmentType = garmentTypeForProduct(product);
+    if (garmentType === "bottoms" && requestedProviderName !== "fashn" && requestedProviderName !== "mock") {
+      return {
+        ok: false,
+        code: "unsupported_model",
+        message: "褲裝 AI 試穿 Beta 目前僅支援標準模型。",
+      };
+    }
     if (input.idempotencyKey) {
       const existing = await deps.findJobByIdempotency(input.userId, input.idempotencyKey);
       if (existing) {
@@ -365,7 +393,7 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
               productId: input.productId,
               personImagePath: input.personImagePath,
               providerName: requestedProviderName,
-              configSnapshot: deps.resolveConfig(requestedProviderName, input.seed ?? 0).snapshot,
+              configSnapshot: deps.resolveConfig(requestedProviderName, input.seed ?? 0, null, garmentType).snapshot,
               explicitSeed: input.seed,
             });
         if (
@@ -395,7 +423,14 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       requestedProviderName: requestedProviderName as TryOnFeatureProvider,
     }) ?? null;
     const providerName = featureDecision?.variant.provider ?? requestedProviderName;
-    const intentConfig = deps.resolveConfig(providerName, input.seed ?? 0, featureDecision);
+    if (garmentType === "bottoms" && providerName !== "fashn" && providerName !== "mock") {
+      return {
+        ok: false,
+        code: "unsupported_model",
+        message: "褲裝 AI 試穿 Beta 目前僅支援標準模型。",
+      };
+    }
+    const intentConfig = deps.resolveConfig(providerName, input.seed ?? 0, featureDecision, garmentType);
     const requestFingerprint = input.idempotencyKey
       ? createTryOnRequestFingerprint({
           userId: input.userId,
@@ -406,15 +441,6 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
           explicitSeed: input.seed,
         })
       : undefined;
-
-    const product = await deps.loadProduct(input.productId);
-    if (!product) {
-      return {
-        ok: false,
-        code: "product_not_found",
-        message: "找不到這個商品，請重新整理頁面。",
-      };
-    }
 
     if (!input.idempotencyKey) {
       const quota = await deps.checkQuota(input.userId, input.productId);
@@ -434,7 +460,7 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       (input.idempotencyKey && requestFingerprint
         ? createIdempotentGenerationSeed(input.idempotencyKey, requestFingerprint)
         : deps.generateSeed());
-    const resolvedConfig = deps.resolveConfig(provider.providerName, seed, featureDecision);
+    const resolvedConfig = deps.resolveConfig(provider.providerName, seed, featureDecision, garmentType);
     const startedAt = deps.now();
     const budgetReservation =
       provider.costEstimate +
@@ -512,7 +538,7 @@ export function createTryOnWorkflow(deps: TryOnWorkflowDependencies) {
       const submission = await provider.submit({
         personImage,
         garmentImage,
-        garmentType: "tops",
+        garmentType,
         generationConfig: resolvedConfig.provider,
       });
       providerJobId = submission.providerJobId;

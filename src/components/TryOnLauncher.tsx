@@ -16,6 +16,7 @@ type Step = "upload" | "ready" | "generating" | "done";
 
 interface Quota {
   generationLimitsEnabled: boolean;
+  unlimitedGeneration?: boolean;
   remainingToday?: number;
   remainingRetriesForProduct?: number;
   dailyLimit?: number;
@@ -32,6 +33,8 @@ export default function TryOnLauncher({
   variants: ProductVariant[];
   isAuthenticated: boolean;
 }) {
+  const isBottoms = product.category === "bottoms";
+  const garmentLabel = isBottoms ? "褲子" : "上衣";
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("upload");
   const [uploading, setUploading] = useState(false);
@@ -167,7 +170,7 @@ export default function TryOnLauncher({
         body: JSON.stringify({
           productId: product.id,
           personImagePath: personPath,
-          ...(model ? { model } : {}),
+          ...(isBottoms ? { model: "v1.6" } : model ? { model } : {}),
         }),
       });
       const data = await res.json();
@@ -207,7 +210,7 @@ export default function TryOnLauncher({
           return;
         }
         if (data.status === "failed") {
-          setError(data.message ?? "AI 生成失敗，請換一張正面半身、上衣清楚的照片再試。");
+          setError(data.message ?? `AI 生成失敗，請換一張${isBottoms ? "正面全身、褲裝區域清楚" : "正面半身、上衣清楚"}的照片再試。`);
           setStep("ready");
           refreshQuota();
           return;
@@ -274,6 +277,11 @@ export default function TryOnLauncher({
                     {quota.remainingRetriesForProduct} 次
                   </p>
                 )}
+                {quota?.unlimitedGeneration && (
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    管理者帳號不受個人試穿額度限制；平台安全預算仍會照常套用。
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => {
@@ -294,7 +302,7 @@ export default function TryOnLauncher({
             )}
 
             {step === "upload" && (
-              <UploadStep uploading={uploading} onSelect={handleUpload} />
+              <UploadStep uploading={uploading} onSelect={handleUpload} garmentType={isBottoms ? "bottoms" : "tops"} />
             )}
 
             {step === "ready" && personPreview && (
@@ -317,10 +325,10 @@ export default function TryOnLauncher({
                       alt={product.name}
                       className="w-full rounded-lg border border-stone-200 object-cover bg-stone-50"
                     />
-                    <figcaption className="mt-1 text-xs text-stone-500 text-center">要試穿的上衣</figcaption>
+                    <figcaption className="mt-1 text-xs text-stone-500 text-center">要試穿的{garmentLabel}</figcaption>
                   </figure>
                 </div>
-                {quota?.defaultModel && model && (
+                {!isBottoms && quota?.defaultModel && model && (
                   <div className="mt-4">
                     <ModelSelector value={model} onChange={setModel} />
                   </div>
@@ -349,7 +357,7 @@ export default function TryOnLauncher({
             {step === "generating" && (
               <div className="py-16 text-center">
                 <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-stone-200 border-t-stone-800" />
-                <p className="text-sm font-medium">AI 正在為你換上這件上衣…</p>
+                <p className="text-sm font-medium">AI 正在為你換上這件{garmentLabel}…</p>
                 <p className="mt-1 text-xs text-stone-500">通常需要 10～40 秒，請不要關閉視窗</p>
               </div>
             )}
@@ -370,7 +378,7 @@ export default function TryOnLauncher({
                 onImageError={refreshJobImages}
                 // 結果頁也放選擇器：重新生成沿用上次選擇，但允許先改選再按「重新生成」
                 modelSelector={
-                  quota?.defaultModel && model ? (
+                  !isBottoms && quota?.defaultModel && model ? (
                     <ModelSelector value={model} onChange={setModel} />
                   ) : undefined
                 }
@@ -430,24 +438,27 @@ function ModelSelector({
 function UploadStep({
   uploading,
   onSelect,
+  garmentType,
 }: {
   uploading: boolean;
   onSelect: (file: File) => void;
+  garmentType: "tops" | "bottoms";
 }) {
+  const isBottoms = garmentType === "bottoms";
   return (
     <div>
       <div className="rounded-lg bg-stone-50 border border-stone-200 p-4 text-sm">
         <p className="font-medium mb-2">照片規範（照著拍，效果最好）</p>
         <ul className="list-disc pl-5 space-y-1 text-stone-600">
           <li>單人照片，不要多人合照</li>
-          <li>正面或接近正面的半身照</li>
-          <li>上衣區域清楚可見，手自然放下、不要抱胸</li>
+          <li>{isBottoms ? "正面或接近正面的全身照，腰部到褲腳都要入鏡" : "正面或接近正面的半身照"}</li>
+          <li>{isBottoms ? "褲裝區域清楚可見，手自然放下、不要遮擋腰部或褲腳" : "上衣區域清楚可見，手自然放下、不要抱胸"}</li>
           <li>避免包包、手機擋住身體</li>
           <li>光線充足、不要太暗或太模糊</li>
           <li>支援 JPG / PNG / WebP，圖片不得超過 8MB（建議寬度 1080～1440px）</li>
         </ul>
         <p className="mt-3 text-xs text-stone-500">
-          拍攝建議：明亮均勻的光線、正面站姿、雙手自然放下、背景乾淨、身上穿著合身上衣。
+          拍攝建議：明亮均勻的光線、正面站姿、雙手自然放下、背景乾淨、{isBottoms ? "褲子與雙腳完整入鏡。" : "身上穿著合身上衣。"}
         </p>
       </div>
       <label className="mt-4 block">

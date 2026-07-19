@@ -360,14 +360,15 @@
           "requestFingerprint": "3b10d06923177b1197aec4fd48e89d1ba975433b08a27254e23b7538391a7cdf"
         },
         "trace": [
-          "idempotency.find:11111111-1111-4111-8111-111111111111:fixed-idempotency-key",
           "product.load:22222222-2222-4222-8222-222222222222:active",
+          "idempotency.find:11111111-1111-4111-8111-111111111111:fixed-idempotency-key",
           "enhancement.estimate:fashn:0",
           "job.record:fashn:seed=1400912348:startedAt=2026-07-17T00:02:00.000Z:key=fixed-idempotency-key",
           "person.download:11111111-1111-4111-8111-111111111111/person.jpg:success",
           "garment.load:/garments/fixed-top.png:success",
           "provider.submit:fashn:seed=1400912348:person=54315810963cd345108c698cd81fbac1facf049f57b16ce2636920ffb2798e0c:garment=7c1c953a799ea0e06a3ff5abfbacddb3399366aebb5707aff8674ead5220e8fa",
           "job.update:33333333-3333-4333-8333-333333333335:{\"provider_job_id\":\"provider-job-fixed-003\",\"status\":\"processing\"}:at=2026-07-17T00:02:01.000Z",
+          "product.load:22222222-2222-4222-8222-222222222222:active",
           "idempotency.find:11111111-1111-4111-8111-111111111111:fixed-idempotency-key",
           "quota.check:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222:allowed"
         ]
@@ -1183,6 +1184,7 @@
           "requestFingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         },
         "trace": [
+          "product.load:22222222-2222-4222-8222-222222222222:active",
           "idempotency.find:11111111-1111-4111-8111-111111111111:fixed-idempotency-key"
         ]
       }

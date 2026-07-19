@@ -11,10 +11,10 @@ describe("mapFashnError：錯誤轉譯", () => {
     "POSE ESTIMATION FAILED", // 大寫也要命中（轉譯用 lowercase 比對）
     "no person found in image",
     "detection failed",
-  ])("姿勢／人物偵測失敗（%s）→ 引導改用正面半身照", (raw) => {
+  ])("姿勢／人物偵測失敗（%s）→ 引導改用正面清楚的人像照", (raw) => {
     const message = mapFashnError(raw);
-    expect(message).toContain("上半身");
-    expect(message).toContain("半身照");
+    expect(message).toContain("人像與姿勢");
+    expect(message).toContain("服裝區域清楚");
   });
 
   it.each(["nsfw image", "content policy violation"])(
@@ -95,6 +95,22 @@ describe("FashnVTOProvider.submit：請求格式", () => {
     // 明示 jpeg，與後端儲存的 image/jpeg 一致
     expect(inputs.output_format).toBe("jpeg");
     expect(inputs.category).toBe("tops");
+  });
+
+  it("褲裝明確送出 bottoms 類型", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "pants-job" }),
+    } as unknown as Response);
+
+    await new FashnVTOProvider().submit({
+      personImage: Buffer.from([1]),
+      garmentImage: Buffer.from([2]),
+      garmentType: "bottoms",
+      generationConfig: resolveTryOnConfig("fashn", 123, null, "bottoms").provider,
+    });
+
+    expect(lastSubmitInputs()).toMatchObject({ category: "bottoms", garment_photo_type: "flat-lay" });
   });
 
   it("使用 Workflow 傳入的 seed，adapter 不再自行呼叫 Math.random", async () => {
@@ -202,7 +218,7 @@ describe("FashnVTOProvider.checkStatus：狀態分支", () => {
     const result = await new FashnVTOProvider().checkStatus("job-123");
     expect(result).toMatchObject({
       status: "failed",
-      errorMessage: expect.stringContaining("上半身"),
+      errorMessage: expect.stringContaining("人像與姿勢"),
     });
   });
 

@@ -1,13 +1,13 @@
 // 成本控管：平台每日預算到頂後全部熔斷。
 //
-// 會員每日與同商品的生成次數限制暫時停用，方便目前規模的功能測試。
-// 保留常數與開關，日後只要把開關改回 true 即可恢復原有 3 次／2 次重試規則；
-// 資料庫 RPC 則以 null 表示不啟用該限制。
+// 一般會員每天最多生成 3 次；admin 角色可略過個人生成額度。
+// 不論角色，平台每日成本預算都會照常執行，避免高權限帳號意外耗盡預算。
 //
 // 設計說明：額度不是存一個計數器欄位，而是直接統計 try_on_jobs 的當日筆數。
 // 這樣「建立 job 紀錄」本身就是 incrementGenerationUsage，不會有計數器與紀錄不同步的問題。
 // 失敗的生成也計入額度（因為已經呼叫過 AI API、產生了成本）。
 import { getSupabaseAdmin, PERSON_BUCKET } from "./supabase";
+import { getStaffRoles } from "./staff";
 import type {
   JobStatus,
   TryOnConfigSnapshotV1,
@@ -15,9 +15,12 @@ import type {
   TryOnJob,
 } from "./types";
 
-export const GENERATION_LIMITS_ENABLED = false;
+export const GENERATION_LIMITS_ENABLED = true;
 export const DAILY_GENERATION_LIMIT = 3;
 export const PER_PRODUCT_RETRY_LIMIT = 2;
+// Postgres integer 的最大值；只傳給既有 service-role RPC，讓 admin 免除個人額度。
+// 平台每日預算仍在 RPC 內強制執行，這不是繞過成本保護。
+const ADMIN_GENERATION_LIMIT = 2_147_483_647;
 // 每日照片上傳上限：生成額度只管 try_on_jobs，上傳本身不建 job，
 // 若不設限就是額度機制外的成本破口（sharp CPU + 私有 bucket 無限累積，
 // 且目前沒有自動清理）。取 3 次生成 × 換照片重試的合理餘裕。
@@ -35,10 +38,15 @@ export function todayStartUtcIso(): string {
 export interface QuotaCheck {
   allowed: boolean;
   reason?: string;
+  isUnlimited: boolean;
   usedToday: number;
   remainingToday: number;
   productAttemptsToday: number; // 今天對這個商品已生成幾次（= 新 job 的 retry_count）
   remainingRetriesForProduct: number;
+}
+
+async function hasUnlimitedGenerationAccess(userId: string): Promise<boolean> {
+  return (await getStaffRoles(userId)).includes("admin");
 }
 
 // 額度訊息文案：前置檢查（checkGenerationQuota）與原子插入（recordTryOnJob）
@@ -110,11 +118,10 @@ export async function checkGenerationQuota(
   userId: string,
   productId: string
 ): Promise<QuotaCheck> {
-  // 生成次數限制停用時，無須為了前置檢查額外查詢；最終仍會由 RPC
-  // 原子地保留平台每日預算與建立 job。
-  if (!GENERATION_LIMITS_ENABLED) {
+  if (await hasUnlimitedGenerationAccess(userId)) {
     return {
       allowed: true,
+      isUnlimited: true,
       usedToday: 0,
       remainingToday: 0,
       productAttemptsToday: 0,
@@ -140,6 +147,7 @@ export async function checkGenerationQuota(
   if (usedToday >= DAILY_GENERATION_LIMIT) {
     return {
       allowed: false,
+      isUnlimited: false,
       reason: dailyLimitReason(),
       usedToday, remainingToday, productAttemptsToday, remainingRetriesForProduct,
     };
@@ -147,11 +155,19 @@ export async function checkGenerationQuota(
   if (productAttemptsToday >= 1 + PER_PRODUCT_RETRY_LIMIT) {
     return {
       allowed: false,
+      isUnlimited: false,
       reason: productLimitReason(),
       usedToday, remainingToday, productAttemptsToday, remainingRetriesForProduct,
     };
   }
-  return { allowed: true, usedToday, remainingToday, productAttemptsToday, remainingRetriesForProduct };
+  return {
+    allowed: true,
+    isUnlimited: false,
+    usedToday,
+    remainingToday,
+    productAttemptsToday,
+    remainingRetriesForProduct,
+  };
 }
 
 export type AtomicJobCreationResult =
@@ -259,6 +275,7 @@ export async function recordTryOnJob(input: {
   requestFingerprint?: string;
 }): Promise<AtomicJobCreationResult> {
   const supabase = getSupabaseAdmin();
+  const hasUnlimitedAccess = await hasUnlimitedGenerationAccess(input.userId);
   const rpcArgs = {
     p_user_id: input.userId,
     p_product_id: input.productId,
@@ -268,10 +285,11 @@ export async function recordTryOnJob(input: {
     p_cost_estimate: input.costEstimate,
     p_budget_reservation: input.budgetReservation,
     p_since: todayStartUtcIso(),
-    // null 代表暫時關閉使用者／商品生成次數限制；migration 20260718010000
-    // 仍會在同一把鎖內強制執行平台預算熔斷與建立 job。
-    p_daily_limit: GENERATION_LIMITS_ENABLED ? DAILY_GENERATION_LIMIT : null,
-    p_product_attempt_limit: GENERATION_LIMITS_ENABLED ? 1 + PER_PRODUCT_RETRY_LIMIT : null,
+    // admin 使用整數上限略過個人額度；平台預算仍一律由 RPC 強制執行。
+    p_daily_limit: hasUnlimitedAccess ? ADMIN_GENERATION_LIMIT : DAILY_GENERATION_LIMIT,
+    p_product_attempt_limit: hasUnlimitedAccess
+      ? ADMIN_GENERATION_LIMIT
+      : 1 + PER_PRODUCT_RETRY_LIMIT,
     p_platform_daily_budget: platformDailyBudgetUsd(),
     p_seed: input.seed,
     p_config_snapshot: input.configSnapshot,
@@ -300,7 +318,9 @@ export async function recordTryOnJob(input: {
           : result.reject_reason === "platform"
             ? platformBudgetReason()
             : dailyLimitReason(),
-      remainingToday: GENERATION_LIMITS_ENABLED
+      remainingToday: hasUnlimitedAccess
+        ? ADMIN_GENERATION_LIMIT
+        : GENERATION_LIMITS_ENABLED
         ? Math.max(0, DAILY_GENERATION_LIMIT - result.used_today)
         : 0,
     };
@@ -322,7 +342,9 @@ export async function recordTryOnJob(input: {
   return {
     outcome: result.outcome,
     job,
-    remainingToday: GENERATION_LIMITS_ENABLED
+    remainingToday: hasUnlimitedAccess
+      ? ADMIN_GENERATION_LIMIT
+      : GENERATION_LIMITS_ENABLED
       ? Math.max(0, DAILY_GENERATION_LIMIT - result.used_today)
       : 0,
   };

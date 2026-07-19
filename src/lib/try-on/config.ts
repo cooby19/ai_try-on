@@ -4,7 +4,7 @@ import {
   GARMENT_IMAGE_MAX_WIDTH,
   GARMENT_IMAGE_PREPROCESSING_VERSION,
 } from "../images";
-import type { TryOnConfigSnapshotV1 } from "../types";
+import type { TryOnConfigSnapshotV1, TryOnGarmentType } from "../types";
 import type { ResolvedTryOnFeatureDecision } from "./feature-flags-core";
 import { TARGET_MAX_WIDTH } from "../upload-constraints";
 import {
@@ -20,7 +20,7 @@ export type ResolvedProviderGenerationConfig =
       modelName: "tryon-v1.6";
       seed: number;
       inputs: {
-        category: "tops";
+        category: TryOnGarmentType;
         mode: "quality";
         garmentPhotoType: "flat-lay";
         outputFormat: "jpeg";
@@ -82,6 +82,7 @@ export function resolveTryOnConfig(
   providerName: string,
   seed: number,
   featureDecision?: ResolvedTryOnFeatureDecision | null,
+  garmentType: TryOnGarmentType = "tops",
 ): ResolvedTryOnConfig {
   if (!isValidGenerationSeed(seed)) {
     throw new RangeError(`seed 必須是 0 到 ${MAX_GENERATION_SEED} 之間的整數。`);
@@ -94,7 +95,7 @@ export function resolveTryOnConfig(
       modelName: "tryon-v1.6",
       seed,
       inputs: {
-        category: "tops",
+        category: garmentType,
         mode: "quality",
         garmentPhotoType: "flat-lay",
         outputFormat: "jpeg",

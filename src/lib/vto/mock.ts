@@ -32,13 +32,17 @@ export class MockVTOProvider implements VTOProvider {
     if (Date.now() - submittedAt < MOCK_DELAY_MS) {
       return { status: "processing" };
     }
-    const resultImage = await composeMockResult(ctx.personImage, ctx.garmentImage);
+    const resultImage = await composeMockResult(ctx.personImage, ctx.garmentImage, ctx.garmentType);
     return { status: "success", resultImage };
   }
 }
 
-// 合成示範結果圖：人物照置底，上衣圖疊在中間偏下（模擬「換上衣」），加上浮水印
-async function composeMockResult(personImage: Buffer, garmentImage: Buffer): Promise<Buffer> {
+// 合成示範結果圖：依服裝類型疊在上半身或下半身，加上浮水印。
+async function composeMockResult(
+  personImage: Buffer,
+  garmentImage: Buffer,
+  garmentType: VTOImageInput["garmentType"],
+): Promise<Buffer> {
   const person = sharp(personImage);
   const meta = await person.metadata();
   const width = meta.width ?? 768;
@@ -68,7 +72,10 @@ async function composeMockResult(personImage: Buffer, garmentImage: Buffer): Pro
       {
         input: garment,
         left: Math.max(0, Math.round((width - garmentWidth) / 2)),
-        top: Math.max(0, Math.round(height * 0.45 - garmentHeight / 2)),
+        top: Math.max(
+          0,
+          Math.round((garmentType === "bottoms" ? height * 0.7 : height * 0.45) - garmentHeight / 2),
+        ),
       },
       { input: badge, left: 0, top: Math.max(0, height - 60) },
     ])

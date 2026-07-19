@@ -7,11 +7,12 @@
 // 要新增 provider（例如 fal.ai）：實作這個介面，然後在 index.ts 的 factory 註冊即可。
 
 import type { ResolvedProviderGenerationConfig } from "../try-on/config";
+import type { TryOnGarmentType } from "../types";
 
 export interface VTOImageInput {
   personImage: Buffer;  // 人物照（已由後端正規化為 JPEG）
-  garmentImage: Buffer; // 上衣圖（PNG）
-  garmentType: "tops";  // 第一版只支援上衣
+  garmentImage: Buffer; // 商品平拍圖（PNG）
+  garmentType: TryOnGarmentType;
 }
 
 export interface VTOSubmitInput extends VTOImageInput {

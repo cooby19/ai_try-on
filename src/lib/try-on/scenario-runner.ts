@@ -352,6 +352,7 @@ export async function executeScenario(
       if (definition.behavior.quota === "rejected") {
         return {
           allowed: false,
+          isUnlimited: false,
           reason: "你今天的 AI 試穿額度（3 次）已用完，明天會自動恢復。",
           usedToday: 3,
           remainingToday: 0,
@@ -361,6 +362,7 @@ export async function executeScenario(
       }
       return {
         allowed: true,
+        isUnlimited: false,
         usedToday: jobs.size,
         remainingToday: Math.max(0, 3 - jobs.size),
         productAttemptsToday: jobs.size,

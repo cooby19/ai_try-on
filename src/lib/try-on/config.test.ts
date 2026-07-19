@@ -73,6 +73,18 @@ describe("Try-On config snapshot V1", () => {
     });
   });
 
+  it("v1.6 褲裝快照固定傳送 bottoms 與 flat-lay", () => {
+    const config = resolveTryOnConfig("fashn", 42, null, "bottoms");
+    expect(config.provider).toMatchObject({
+      inputs: { category: "bottoms", garmentPhotoType: "flat-lay" },
+    });
+    expect(config.snapshot.generation).toEqual({
+      seed: 42,
+      garmentType: "bottoms",
+      garmentPhotoType: "flat-lay",
+    });
+  });
+
   it("只有 fashn + realesrgan 啟用時記錄固定模型版本與 2x", () => {
     vi.stubEnv("ENHANCE_PROVIDER", "realesrgan");
     const enabled = resolveTryOnConfig("fashn", 1).snapshot.enhancement;

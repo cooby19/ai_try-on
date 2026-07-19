@@ -26,7 +26,7 @@
     "visualQualityClaim": false,
     "fixture": {
       "path": "fixtures/try-on-cases/cases.v1.json",
-      "sha256": "5ea3c5a582a37598a947e9231a55a32c68fa56182c8e9c4573c6efbed8819b58",
+      "sha256": "d26a95d6e0514cd275dc093dde16550d893d17bf75f228aadb88c3616e69ac07",
       "caseCount": 16
     },
     "runnerCommand": "npm run try-on:cases -- --json",
@@ -171,9 +171,9 @@
       {
         "caseId": "start-idempotent-generated-seed-and-replay",
         "visualReviewEligible": false,
-        "definitionSha256": "638abf0572fa182f5df186065d25953707f6d92c8dbd82531de6a91ac6386b37",
+        "definitionSha256": "d6bdc7e55e773d2ceab4faa58daa434206cdbdf0edbb80b12d5585e669543236",
         "expectedOutputSha256": "c9171a7a541ad2cd005b07d7f2df62c4f05e5ae59d77856291bf1b0a70992668",
-        "traceSha256": "bdf9201b9852e4a90937235ab21cc5c9be302a8b2d163c9145eedb73e66800da",
+        "traceSha256": "2ff3e76debe3f3c51547a19c856c0894b378613427e0466606b53afda53eb747",
         "embeddedInputIds": [
           "runner-person-v1",
           "runner-garment-v1"
@@ -532,9 +532,9 @@
       {
         "caseId": "conflict-same-key-different-intent",
         "visualReviewEligible": false,
-        "definitionSha256": "a310573dc2f6ce789255dcbef83f7dec39434857c388f513bfc9abb5a1eabfe2",
+        "definitionSha256": "831beb7753ef4d7bb58043b34296a1b5870649c659b72ff2fa8452c96463ae73",
         "expectedOutputSha256": "8cf8039be98315ea2660c61e84c4aca4906170465bc71f8759a638323919bbc5",
-        "traceSha256": "10645cfd6c6d7bff1d23e2874d86eda62d07085c6c29783dd4724cfd2af567ee",
+        "traceSha256": "12d846ab458159d3502a68d822c8aa9f46a7820c9a2f2d84b18349663a4a982b",
         "embeddedInputIds": [
           "runner-person-v1",
           "runner-garment-v1"

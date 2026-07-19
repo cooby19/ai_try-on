@@ -12,6 +12,7 @@ export type AccountDeletionRequestStatus =
 // 使用者可選的生成模型（對外名稱）。刻意不用 provider 內部名稱（fashn / fashn-max），
 // 對外與對內的映射由後端白名單控制（見 src/lib/vto/index.ts），前端無法注入任意 provider。
 export type TryOnModel = "v1.6" | "max";
+export type TryOnGarmentType = "tops" | "bottoms";
 
 export type TryOnErrorType =
   | "input_validation"
@@ -58,7 +59,7 @@ export interface TryOnConfigSnapshotV1 {
   };
   generation: {
     seed: number;
-    garmentType: "tops" | null;
+    garmentType: TryOnGarmentType | null;
     garmentPhotoType: "flat-lay" | null;
   };
   preprocessing: {

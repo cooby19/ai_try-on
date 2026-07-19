@@ -21,9 +21,10 @@ export async function GET(req: Request) {
     const userId = (await requireUser()).id;
     const quota = await checkGenerationQuota(userId, productId);
     return NextResponse.json(
-      GENERATION_LIMITS_ENABLED
+      GENERATION_LIMITS_ENABLED && !quota.isUnlimited
         ? {
             generationLimitsEnabled: true,
+            unlimitedGeneration: false,
             remainingToday: quota.remainingToday,
             remainingRetriesForProduct: quota.remainingRetriesForProduct,
             dailyLimit: DAILY_GENERATION_LIMIT,
@@ -31,6 +32,7 @@ export async function GET(req: Request) {
           }
         : {
             generationLimitsEnabled: false,
+            unlimitedGeneration: quota.isUnlimited,
             defaultModel,
           },
     );

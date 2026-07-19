@@ -209,6 +209,7 @@ beforeEach(() => {
   vi.mocked(isOwnedPersonImagePath).mockReturnValue(true);
   vi.mocked(checkGenerationQuota).mockResolvedValue({
     allowed: true,
+    isUnlimited: false,
     usedToday: 0,
     remainingToday: 3,
     productAttemptsToday: 0,
@@ -285,6 +286,35 @@ describe("startTryOnWorkflow", () => {
     });
   });
 
+  it("一般會員使用 v1.6 以 bottoms 類型提交褲裝", async () => {
+    installSupabase({ product: makeProduct({ category: "bottoms" }) });
+    const provider = installProvider();
+
+    const result = await startTryOnWorkflow(input);
+
+    expect(result).toMatchObject({ ok: true });
+    expect(provider.submit).toHaveBeenCalledWith(expect.objectContaining({
+      garmentType: "bottoms",
+      generationConfig: expect.objectContaining({
+        providerName: "fashn",
+        inputs: expect.objectContaining({ category: "bottoms" }),
+      }),
+    }));
+  });
+
+  it("褲裝 Beta 拒絕 Max", async () => {
+    installSupabase({ product: makeProduct({ category: "bottoms" }) });
+    vi.mocked(resolveVTOProviderName).mockReturnValue("fashn-max");
+
+    const result = await startTryOnWorkflow({ ...input, requestedModel: "max" });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "unsupported_model",
+      message: "褲裝 AI 試穿 Beta 目前僅支援標準模型。",
+    });
+  });
+
   it("不支援的 model 在建立 Job 前被拒絕", async () => {
     vi.mocked(resolveVTOProviderName).mockReturnValue(null);
     const result = await startTryOnWorkflow({ ...input, requestedModel: "arbitrary-provider" });
@@ -338,6 +368,7 @@ describe("startTryOnWorkflow", () => {
   it("前置額度不足時不建立 Job 或呼叫 Provider", async () => {
     vi.mocked(checkGenerationQuota).mockResolvedValue({
       allowed: false,
+      isUnlimited: false,
       reason: "額度已用完",
       usedToday: 3,
       remainingToday: 0,

@@ -1,5 +1,5 @@
 // quota.ts 的回歸保護：平台預算、上傳限制與生成限制開關都直接影響成本。
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import {
   DAILY_GENERATION_LIMIT,
@@ -13,6 +13,13 @@ import {
   updateJobStatus,
 } from "@/lib/quota";
 import { resolveTryOnConfig } from "@/lib/try-on/config";
+import { getStaffRoles } from "@/lib/staff";
+
+vi.mock("@/lib/staff", () => ({ getStaffRoles: vi.fn() }));
+
+beforeEach(() => {
+  vi.mocked(getStaffRoles).mockResolvedValue([]);
+});
 
 vi.mock("@/lib/supabase", () => ({
   getSupabaseAdmin: vi.fn(),
@@ -25,8 +32,8 @@ afterEach(() => {
 });
 
 describe("生成次數限制", () => {
-  it("目前停用，保留原有常數供日後重新啟用", () => {
-    expect(GENERATION_LIMITS_ENABLED).toBe(false);
+  it("一般會員每天最多 3 次，單一商品最多生成 3 次", () => {
+    expect(GENERATION_LIMITS_ENABLED).toBe(true);
     expect(DAILY_GENERATION_LIMIT).toBe(3);
     expect(PER_PRODUCT_RETRY_LIMIT).toBe(2);
   });
@@ -52,9 +59,10 @@ describe("台北時區（UTC+8）每日邊界", () => {
     expect(todayStartUtcIso()).toBe("2026-07-04T16:00:00.000Z");
   });
 
-  it("停用生成次數限制時，前置檢查不查詢資料庫也不拒絕", async () => {
+  it("admin 免除個人生成額度", async () => {
+    vi.mocked(getStaffRoles).mockResolvedValue(["admin"]);
     const result = await checkGenerationQuota("user-1", "product-a");
-    expect(result).toMatchObject({ allowed: true, usedToday: 0, remainingToday: 0 });
+    expect(result).toMatchObject({ allowed: true, isUnlimited: true, usedToday: 0, remainingToday: 0 });
   });
 });
 
@@ -217,7 +225,7 @@ const recordInput = {
 };
 
 describe("原子插入：參數 wiring", () => {
-  it("時區起點與停用生成次數限制的 null 由應用層傳入 RPC", async () => {
+  it("一般會員會將每日與單一商品上限傳入 RPC", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-04T15:59:59Z")); // 台北 23:59:59，今天從 07-03T16:00Z 起算
     const { rpc } = mockRpc({
@@ -232,8 +240,27 @@ describe("原子插入：參數 wiring", () => {
         p_product_id: "p-a",
         p_budget_reservation: 0.0775,
         p_since: "2026-07-03T16:00:00.000Z",
-        p_daily_limit: null,
-        p_product_attempt_limit: null,
+        p_daily_limit: DAILY_GENERATION_LIMIT,
+        p_product_attempt_limit: 1 + PER_PRODUCT_RETRY_LIMIT,
+      })
+    );
+  });
+
+  it("admin 使用高上限略過個人額度，但仍交由 RPC 檢查平台預算", async () => {
+    vi.mocked(getStaffRoles).mockResolvedValue(["admin"]);
+    const { rpc } = mockRpc({
+      data: { outcome: "created", used_today: 4, product_attempts_today: 4, job: rpcJob },
+      error: null,
+    });
+
+    await recordTryOnJob(recordInput);
+
+    expect(rpc).toHaveBeenCalledWith(
+      "insert_try_on_job_within_quota",
+      expect.objectContaining({
+        p_daily_limit: 2_147_483_647,
+        p_product_attempt_limit: 2_147_483_647,
+        p_platform_daily_budget: expect.any(Number),
       })
     );
   });
@@ -249,7 +276,7 @@ describe("原子插入：勝出與拒絕", () => {
     expect(result.outcome).toBe("created");
     if (result.outcome !== "created") throw new Error("預期 created");
     expect(result.job.id).toBe("job-new");
-    expect(result.remainingToday).toBe(0); // 停用時前端不顯示此欄位
+    expect(result.remainingToday).toBe(0);
   });
 
   it("每日超限（競態落敗方）：拒絕、回每日上限文案、不回 job", async () => {
