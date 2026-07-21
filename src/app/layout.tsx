@@ -10,6 +10,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "樣衣間｜AI 虛擬試衣",
   description: "上傳正面半身照預覽穿搭，並將喜歡的商品保存到跨裝置購物車。",
+
+  verification: {
+
+    google: "YP2F37zlMJCOVI13PnlClUmuqqUaRN7CfbTN3_weB_0",
+
+  },
 };
 
 export default async function RootLayout({
